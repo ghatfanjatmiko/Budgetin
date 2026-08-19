@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budgetin' — Prototype</title>
+<style>
+  :root{
+    --paper:#F6F3EC;
+    --ink:#1F2A24;
+    --ledger:#2E4034;
+    --mint:#4C8C6B;
+    --mint-deep:#2E4034;
+    --coin:#E4B85C;
+    --line:#D8D0BC;
+    --danger:#B5533C;
+    --white:#FFFDF8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Courier New', ui-monospace, monospace;
+    -webkit-font-smoothing:antialiased;
+  }
+  @font-face{
+    font-family:'DisplaySerif';
+    src:local('Georgia');
+  }
+  h1,h2,h3,.display{
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing:-0.01em;
+  }
+  .app{max-width:920px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* header */
+  .header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;border-bottom:2px solid var(--ledger);padding-bottom:14px;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand h1{font-size:28px;margin:0;color:var(--ledger);}
+  .brand .tag{font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:var(--mint);}
+  .month-picker{font-size:13px;background:var(--white);border:1px solid var(--line);padding:8px 12px;border-radius:2px;color:var(--ledger);}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;margin-bottom:22px;border-bottom:1px solid var(--line);}
+  .tab{padding:10px 16px;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;color:#8a8574;border-bottom:2px solid transparent;user-select:none;}
+  .tab.active{color:var(--ledger);border-bottom:2px solid var(--mint);font-weight:bold;}
+
+  /* summary strip */
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:26px;}
+  .sum-card{background:var(--white);padding:16px 14px;}
+  .sum-card .label{font-size:10px;text-transform:uppercase;letter-spacing:0.09em;color:#8a8574;margin-bottom:6px;}
+  .sum-card .value{font-family:Georgia,serif;font-size:22px;color:var(--ledger);}
+  .sum-card.negative .value{color:var(--danger);}
+  .sum-card.accent .value{color:var(--mint-deep);}
+
+  /* sections */
+  .section{margin-bottom:30px;}
+  .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .section-head h2{font-size:15px;margin:0;text-transform:uppercase;letter-spacing:0.08em;color:var(--ledger);}
+  .section-head .hint{font-size:11px;color:#8a8574;}
+
+  table{width:100%;border-collapse:collapse;background:var(--white);}
+  th{
+    text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;
+    color:#8a8574;font-weight:normal;border-bottom:1px solid var(--line);padding:8px 10px;
+  }
+  td{padding:9px 10px;border-bottom:1px dashed var(--line);font-size:13px;}
+  tr:last-child td{border-bottom:none;}
+  input[type=text], input[type=number], select{
+    width:100%;border:1px solid transparent;background:transparent;font-family:inherit;font-size:13px;color:var(--ink);padding:4px 2px;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus{
+    outline:none;border-bottom:1px solid var(--mint);background:#FBF9F3;
+  }
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .row-actions{text-align:right;}
+  .btn{
+    font-family:inherit;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;
+    background:var(--ledger);color:var(--white);border:none;padding:9px 14px;cursor:pointer;border-radius:2px;
+  }
+  .btn:hover{background:var(--mint-deep);}
+  .btn.ghost{background:transparent;color:var(--ledger);border:1px solid var(--line);}
+  .btn.small{padding:4px 9px;font-size:10px;}
+  .btn.danger{background:transparent;color:var(--danger);border:1px solid var(--danger);}
+  .add-row{margin-top:8px;text-align:left;}
+
+  .progress-wrap{background:var(--white);padding:14px 16px;border:1px solid var(--line);}
+  .progress-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;}
+  .bar{height:8px;background:#EEE9DB;border-radius:4px;overflow:hidden;margin-bottom:4px;}
+  .bar-fill{height:100%;background:var(--mint);}
+  .bar-fill.over{background:var(--danger);}
+
+  .quick-add{display:flex;gap:8px;background:var(--white);border:1px solid var(--line);padding:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .quick-add select, .quick-add input{border:1px solid var(--line);padding:8px;border-radius:2px;background:var(--paper);}
+  .quick-add .qty, .quick-add .price{width:110px;}
+  .quick-add .name{flex:1;min-width:140px;}
+  .quick-add .kind{width:130px;}
+
+  .empty{padding:20px;text-align:center;color:#a39d89;font-size:12px;background:var(--white);border:1px dashed var(--line);}
+
+  .footer-note{margin-top:40px;font-size:11px;color:#a39d89;text-align:center;}
+  .stamp{display:inline-block;border:1px solid var(--mint);color:var(--mint);padding:2px 8px;border-radius:2px;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;transform:rotate(-2deg);}
+
+  /* streak badge in header */
+  .streak-chip{font-size:11px;background:var(--white);border:1px solid var(--coin);color:var(--mint-deep);padding:6px 10px;border-radius:2px;white-space:nowrap;}
+
+  /* prediction banner */
+  .banner{padding:12px 16px;font-size:13px;margin-bottom:22px;border:1px solid;line-height:1.5;}
+  .banner.warn{background:#FBEDE7;border-color:var(--danger);color:var(--danger);}
+  .banner.ok{background:#EEF6F1;border-color:var(--mint);color:var(--mint-deep);}
+  .banner.neutral{background:var(--white);border-color:var(--line);color:#8a8574;}
+
+  /* split panel */
+  .split-panel{padding:12px;background:#FBF9F3;font-size:12px;}
+  .split-panel input{border:1px solid var(--line);padding:4px 6px;border-radius:2px;width:60px;background:var(--white);}
+  .split-result textarea{width:100%;font-family:inherit;font-size:12px;padding:8px;border:1px solid var(--line);background:var(--white);margin-top:8px;}
+
+  /* fitur plus tab */
+  .plus-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  .plus-card{background:var(--white);border:1px solid var(--line);padding:16px;}
+  .plus-card h3{margin:6px 0 8px;font-size:14px;color:var(--ledger);font-family:Georgia,serif;}
+  .plus-card p{font-size:12px;color:#5c5847;line-height:1.5;margin:0 0 4px;}
+  .badge-premium{display:inline-block;background:var(--coin);color:var(--ledger);font-size:9px;text-transform:uppercase;letter-spacing:0.06em;padding:2px 7px;border-radius:2px;}
+  .badge-premium.soon{background:var(--line);color:#8a8574;}
+  .badge-premium.active{background:#DCEEE2;color:var(--mint-deep);}
+  .detail-box{font-size:12px;background:var(--paper);padding:10px;border-radius:2px;margin-top:8px;}
+
+  .chat-mock{background:#ECE5D8;border-radius:8px;padding:10px;margin-top:10px;}
+  .chat-bubble{background:#DCF8C6;border-radius:8px;padding:7px 10px;margin-bottom:6px;font-size:12px;max-width:85%;}
+  .chat-bubble.bot{background:var(--white);}
+
+  .streak-num{font-family:Georgia,serif;font-size:38px;color:var(--mint-deep);line-height:1;}
+
+  .bench-row{margin-bottom:10px;}
+  .bench-label{font-size:11px;display:flex;justify-content:space-between;margin-bottom:3px;}
+  .bench-bar-bg{height:9px;background:#EEE9DB;border-radius:5px;overflow:hidden;}
+  .bench-bar-fill{height:100%;}
+
+  /* receipt scan */
+  .upload-zone{border:1.5px dashed var(--line);padding:18px;text-align:center;margin-top:10px;background:var(--paper);cursor:pointer;}
+  .upload-zone:hover{border-color:var(--mint);}
+  .upload-zone input[type=file]{display:none;}
+  .scan-status{font-size:12px;color:var(--mint-deep);margin-top:8px;}
+  .receipt-result{margin-top:12px;background:var(--paper);border:1px solid var(--line);padding:12px;font-size:12px;}
+  .receipt-result table{background:transparent;}
+  .receipt-result td, .receipt-result th{padding:5px 6px;font-size:12px;}
+  .spinner{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--mint);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:6px;vertical-align:-1px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="brand">
+      <h1>Budgetin'</h1>
+      <span class="tag">Pencatatan Keuangan Bulanan</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="streak-chip" id="streakBadge">🔥 0 hari streak</span>
+      <select class="month-picker" id="monthPicker">
+        <option>Desember 2025</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="budget">Halaman Budgeting</div>
+    <div class="tab" data-tab="tracker">Tracker Jajan &amp; Nongkrong</div>
+    <div class="tab" data-tab="plus">✨ Fitur Plus</div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary" id="summaryStrip"></div>
+  <div id="predictionBanner"></div>
+
+  <!-- BUDGET TAB -->
+  <div id="tab-budget">
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Pendapatan</h2>
+        <span class="hint">total: <span id="incomeTotal">Rp0</span></span>
+      </div>
+      <table id="incomeTable">
+        <thead><tr><th>Sumber</th><th>Tipe</th><th class="num">Jumlah</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="add-row"><button class="btn ghost small" onclick="addRow('income')">+ Tambah Pendapatan</button></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Nabung</h2>
+        <span class="hint">total: <span id="savingsTotal">Rp0</span></span>
+      </div>
+      <table id="savingsTable">
+        <thead><tr><th>Keterangan</th><th>Prioritas</th><th class="num">Jumlah</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="add-row"><button class="btn ghost small" onclick="addRow('savings')">+ Tambah Tabungan</button></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Pengeluaran Tetap</h2>
+        <span class="hint">total: <span id="fixedTotal">Rp0</span></span>
+      </div>
+      <table id="fixedTable">
+        <thead><tr><th>Kategori</th><th class="num">Jumlah</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="add-row"><button class="btn ghost small" onclick="addRow('fixed')">+ Tambah Pengeluaran Tetap</button></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Pengeluaran Tidak Tetap</h2>
+        <span class="hint">rencana vs aktual</span>
+      </div>
+      <table id="variableTable">
+        <thead><tr><th>Kategori</th><th class="num">Rencana</th><th class="num">Aktual</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="add-row"><button class="btn ghost small" onclick="addRow('variable')">+ Tambah Kategori</button></div>
+      <p style="font-size:11px;color:#8a8574;margin-top:8px;">Kategori "Jajan &amp; Nongkrong" otomatis terisi dari halaman Tracker.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Langganan &amp; Hutang</h2>
+        <span class="hint">total: <span id="debtTotal">Rp0</span></span>
+      </div>
+      <table id="debtTable">
+        <thead><tr><th>Nama</th><th>Jatuh Tempo</th><th class="num">Jumlah</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="add-row"><button class="btn ghost small" onclick="addRow('debt')">+ Tambah Langganan/Hutang</button></div>
+    </div>
+
+  </div>
+
+  <!-- TRACKER TAB -->
+  <div id="tab-tracker" style="display:none;">
+
+    <div class="quick-add">
+      <select class="kind" id="qa-kind">
+        <option value="Jajan">🍿 Jajan</option>
+        <option value="Nongkrong">☕ Nongkrong</option>
+      </select>
+      <input class="name" id="qa-name" type="text" placeholder="Nama item / tempat">
+      <input class="qty" id="qa-qty" type="number" placeholder="Qty" value="1" min="1">
+      <input class="price" id="qa-price" type="number" placeholder="Harga satuan">
+      <button class="btn" onclick="quickAddTransaction()">+ Catat</button>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Transaksi Bulan Ini</h2>
+        <span class="hint" id="txCount">0 transaksi</span>
+      </div>
+      <table id="txTable">
+        <thead><tr><th>Tanggal</th><th>Jenis</th><th>Item / Tempat</th><th class="num">Qty</th><th class="num">Harga Satuan</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="txEmpty" class="empty" style="display:none;">Belum ada transaksi. Catat jajan atau nongkrong pertamamu di atas 👆</div>
+      <p style="font-size:11px;color:#8a8574;margin-top:6px;">💡 Untuk transaksi Nongkrong, klik <b>Split</b> buat bagi rata sama teman.</p>
+    </div>
+
+  </div>
+
+  <!-- FITUR PLUS TAB -->
+  <div id="tab-plus" style="display:none;">
+    <div class="plus-grid">
+
+      <div class="plus-card">
+        <span class="badge-premium active">Aktif</span>
+        <h3>📈 Prediksi &amp; Peringatan Dini</h3>
+        <p>Sistem memantau kecepatan jajanmu dan kasih tau lebih awal kalau berisiko boncos sebelum akhir bulan — lihat banner di halaman Budgeting.</p>
+        <div class="detail-box" id="plus-prediction-detail">Belum ada transaksi untuk dianalisis.</div>
+      </div>
+
+      <div class="plus-card">
+        <span class="badge-premium active">Aktif</span>
+        <h3>🧾 Split Nongkrong</h3>
+        <p>Nongkrong bareng teman? Buka tab <b>Tracker</b>, klik tombol <b>Split</b> di transaksi Nongkrong mana pun buat langsung hitung bagian masing-masing dan dapat pesan siap kirim ke grup WA.</p>
+      </div>
+
+      <div class="plus-card" style="grid-column:1 / -1;">
+        <span class="badge-premium active">Aktif</span>
+        <h3>📸 Scan Struk dengan AI</h3>
+        <p>Habis belanja/nongkrong dan struknya panjang? Foto aja — AI otomatis baca nama item, harga, dan totalnya, lalu tinggal klik sekali buat masuk ke tracker. Kombinasikan dengan Split Nongkrong biar makin cepat bagi tagihan grup.</p>
+        <label class="upload-zone" id="uploadZone">
+          <input type="file" id="receiptInput" accept="image/*" onchange="handleReceiptUpload(this)">
+          <span id="uploadZoneLabel">📷 Klik untuk unggah foto struk</span>
+        </label>
+        <div id="scanStatus"></div>
+        <div id="receiptResult"></div>
+      </div>
+
+      <div class="plus-card">
+        <span class="badge-premium soon">Segera Hadir</span>
+        <h3>💬 Catat via WhatsApp</h3>
+        <p>Cukup chat bot-nya, gak perlu buka aplikasi sama sekali. Cocok buat momen buru-buru abis jajan.</p>
+        <div class="chat-mock">
+          <div class="chat-bubble">kopi kenangan 22rb</div>
+          <div class="chat-bubble bot">Noted! ☕ Kopi Kenangan — Rp22.000 masuk kategori Nongkrong. Sisa budget jajan bulan ini: Rp84.000.</div>
+        </div>
+      </div>
+
+      <div class="plus-card">
+        <span class="badge-premium active">Aktif</span>
+        <h3>🔥 Streak Nyatet</h3>
+        <div class="streak-num" id="plus-streak-num">0</div>
+        <p>hari berturut-turut kamu konsisten nyatet. Makin panjang streak, makin kelihatan pola jajanmu.</p>
+      </div>
+
+      <div class="plus-card" style="grid-column:1 / -1;">
+        <span class="badge-premium soon">Segera Hadir</span>
+        <h3>📊 Benchmark Komunitas Kampus</h3>
+        <p>Bandingkan pengeluaran jajan/nongkrongmu bulan ini dengan rata-rata mahasiswa lain di kampusmu (anonim &amp; agregat).</p>
+        <div id="benchContent" style="margin-top:10px;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <span class="stamp">Prototype v0.1</span><br><br>
+    Data disimpan sementara di browser kamu untuk keperluan demo — belum tersambung ke server.
+  </div>
+
+</div>
+
+<script>
+// ---------- state ----------
+let state = {
+  income: [
+    {source:"Pendapatan", type:"Aktif", amount:3000000}
+  ],
+  savings: [
+    {desc:"Dana Darurat", priority:"Tinggi", amount:1300000}
+  ],
+  fixed: [
+    {category:"Kos", amount:0}
+  ],
+  variable: [
+    {category:"Jajan & Nongkrong", plan:150000, actual:0, auto:true},
+  ],
+  debt: [
+    {name:"Langganan Musik", due:"25", amount:0, status:"Belum Bayar"}
+  ],
+  transactions: [
+    {date:"2025-12-03", kind:"Jajan", name:"Cimol", qty:2, price:5000},
+    {date:"2025-12-05", kind:"Nongkrong", name:"Kopi Kenangan", qty:1, price:22000},
+  ]
+};
+
+function rupiah(n){
+  return "Rp" + Math.round(n||0).toLocaleString('id-ID');
+}
+
+// ---------- render ----------
+function renderIncome(){
+  const tbody = document.querySelector('#incomeTable tbody');
+  tbody.innerHTML = '';
+  let total = 0;
+  state.income.forEach((row, i)=>{
+    total += Number(row.amount)||0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${row.source}" onchange="updateField('income',${i},'source',this.value)"></td>
+      <td>
+        <select onchange="updateField('income',${i},'type',this.value)">
+          <option ${row.type==='Aktif'?'selected':''}>Aktif</option>
+          <option ${row.type==='Pasif'?'selected':''}>Pasif</option>
+        </select>
+      </td>
+      <td class="num"><input type="number" class="num" value="${row.amount}" onchange="updateField('income',${i},'amount',this.value)"></td>
+      <td class="row-actions"><button class="btn danger small" onclick="removeRow('income',${i})">Hapus</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('incomeTotal').textContent = rupiah(total);
+  return total;
+}
+
+function renderSavings(){
+  const tbody = document.querySelector('#savingsTable tbody');
+  tbody.innerHTML = '';
+  let total = 0;
+  state.savings.forEach((row,i)=>{
+    total += Number(row.amount)||0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${row.desc}" onchange="updateField('savings',${i},'desc',this.value)"></td>
+      <td><input type="text" value="${row.priority}" onchange="updateField('savings',${i},'priority',this.value)"></td>
+      <td class="num"><input type="number" class="num" value="${row.amount}" onchange="updateField('savings',${i},'amount',this.value)"></td>
+      <td class="row-actions"><button class="btn danger small" onclick="removeRow('savings',${i})">Hapus</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('savingsTotal').textContent = rupiah(total);
+  return total;
+}
+
+function renderFixed(){
+  const tbody = document.querySelector('#fixedTable tbody');
+  tbody.innerHTML = '';
+  let total = 0;
+  state.fixed.forEach((row,i)=>{
+    total += Number(row.amount)||0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${row.category}" onchange="updateField('fixed',${i},'category',this.value)"></td>
+      <td class="num"><input type="number" class="num" value="${row.amount}" onchange="updateField('fixed',${i},'amount',this.value)"></td>
+      <td class="row-actions"><button class="btn danger small" onclick="removeRow('fixed',${i})">Hapus</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('fixedTotal').textContent = rupiah(total);
+  return total;
+}
+
+function renderVariable(){
+  // sync auto category with tracker totals
+  const jajanNongkrongTotal = state.transactions.reduce((s,t)=> s + (Number(t.qty)||0)*(Number(t.price)||0), 0);
+  state.variable.forEach(row=>{ if(row.auto) row.actual = jajanNongkrongTotal; });
+
+  const tbody = document.querySelector('#variableTable tbody');
+  tbody.innerHTML = '';
+  let planTotal = 0, actualTotal = 0;
+  state.variable.forEach((row,i)=>{
+    planTotal += Number(row.plan)||0;
+    actualTotal += Number(row.actual)||0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${row.category}" ${row.auto?'disabled':''} onchange="updateField('variable',${i},'category',this.value)"></td>
+      <td class="num"><input type="number" class="num" value="${row.plan}" onchange="updateField('variable',${i},'plan',this.value)"></td>
+      <td class="num">${row.auto ? `<span title="Otomatis dari Tracker">${rupiah(row.actual)} 🔗</span>` : `<input type="number" class="num" value="${row.actual}" onchange="updateField('variable',${i},'actual',this.value)">`}</td>
+      <td class="row-actions">${row.auto ? '' : `<button class="btn danger small" onclick="removeRow('variable',${i})">Hapus</button>`}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  return {planTotal, actualTotal};
+}
+
+function renderDebt(){
+  const tbody = document.querySelector('#debtTable tbody');
+  tbody.innerHTML = '';
+  let total = 0;
+  state.debt.forEach((row,i)=>{
+    total += Number(row.amount)||0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${row.name}" onchange="updateField('debt',${i},'name',this.value)"></td>
+      <td><input type="text" value="${row.due}" style="width:50px" onchange="updateField('debt',${i},'due',this.value)"> tiap bulan</td>
+      <td class="num"><input type="number" class="num" value="${row.amount}" onchange="updateField('debt',${i},'amount',this.value)"></td>
+      <td>
+        <select onchange="updateField('debt',${i},'status',this.value)">
+          <option ${row.status==='Belum Bayar'?'selected':''}>Belum Bayar</option>
+          <option ${row.status==='Lunas'?'selected':''}>Lunas</option>
+        </select>
+      </td>
+      <td class="row-actions"><button class="btn danger small" onclick="removeRow('debt',${i})">Hapus</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('debtTotal').textContent = rupiah(total);
+  return total;
+}
+
+function renderTransactions(){
+  const tbody = document.querySelector('#txTable tbody');
+  tbody.innerHTML = '';
+  const sorted = [...state.transactions].sort((a,b)=> new Date(b.date) - new Date(a.date));
+  sorted.forEach((row)=>{
+    const i = state.transactions.indexOf(row);
+    const total = (Number(row.qty)||0)*(Number(row.price)||0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${row.date}" style="width:100px" onchange="updateField('transactions',${i},'date',this.value)"></td>
+      <td>${row.kind === 'Jajan' ? '🍿 Jajan' : '☕ Nongkrong'}</td>
+      <td><input type="text" value="${row.name}" onchange="updateField('transactions',${i},'name',this.value)"></td>
+      <td class="num"><input type="number" class="num" value="${row.qty}" style="width:50px" onchange="updateField('transactions',${i},'qty',this.value)"></td>
+      <td class="num"><input type="number" class="num" value="${row.price}" onchange="updateField('transactions',${i},'price',this.value)"></td>
+      <td class="num">${rupiah(total)}</td>
+      <td class="row-actions">
+        ${row.kind === 'Nongkrong' ? `<button class="btn ghost small" onclick="toggleSplit(${i})">Split</button>` : ''}
+        <button class="btn danger small" onclick="removeRow('transactions',${i})">Hapus</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+
+    if(row.kind === 'Nongkrong'){
+      const splitTr = document.createElement('tr');
+      splitTr.innerHTML = `
+        <td colspan="7" style="padding:0;">
+          <div id="split-${i}" class="split-panel" style="display:none;">
+            Split "<b>${row.name}</b>" (${rupiah(total)}) dengan berapa orang (termasuk kamu)?
+            <input type="number" id="split-n-${i}" value="2" min="1">
+            <button class="btn small" onclick="computeSplit(${i})">Hitung</button>
+            <div id="split-result-${i}" class="split-result"></div>
+          </div>
+        </td>`;
+      tbody.appendChild(splitTr);
+    }
+  });
+  document.getElementById('txCount').textContent = state.transactions.length + " transaksi";
+  document.getElementById('txEmpty').style.display = state.transactions.length ? 'none' : 'block';
+}
+
+function toggleSplit(i){
+  const el = document.getElementById('split-'+i);
+  if(el) el.style.display = el.style.display === 'block' ? 'none' : 'block';
+}
+
+function computeSplit(i){
+  const row = state.transactions[i];
+  const total = (Number(row.qty)||0)*(Number(row.price)||0);
+  const n = Math.max(Number(document.getElementById('split-n-'+i).value)||1, 1);
+  const share = total / n;
+  const msg = `Woy! Tadi ${row.kind.toLowerCase()} di ${row.name}, totalnya ${rupiah(total)}. Dibagi ${n} orang jadi masing-masing ${rupiah(share)} ya 🙏`;
+  document.getElementById('split-result-'+i).innerHTML = `
+    <div>Per orang: <b>${rupiah(share)}</b></div>
+    <textarea readonly rows="3">${msg}</textarea>
+    <button class="btn small ghost" style="margin-top:6px;" onclick="copySplitMsg(this)" data-msg="${msg.replace(/"/g,'&quot;')}">Salin Pesan</button>
+  `;
+}
+
+function copySplitMsg(btn){
+  const msg = btn.getAttribute('data-msg');
+  const done = ()=>{ const t = btn.textContent; btn.textContent = 'Tersalin ✓'; setTimeout(()=> btn.textContent = t, 1500); };
+  if(navigator.clipboard){ navigator.clipboard.writeText(msg).then(done).catch(()=> alert(msg)); }
+  else { alert(msg); }
+}
+
+// ---------- receipt scan (AI mockup) ----------
+const receiptTemplates = [
+  { merchant: "Warung Kopi Klotok", kind: "Nongkrong", items: [
+      {name:"Kopi Susu Gula Aren", qty:2, price:18000},
+      {name:"Pisang Goreng", qty:1, price:12000},
+    ]},
+  { merchant: "Indomaret", kind: "Jajan", items: [
+      {name:"Chitato", qty:1, price:11000},
+      {name:"Teh Botol", qty:2, price:5000},
+    ]},
+  { merchant: "Ayam Geprek Bensu", kind: "Nongkrong", items: [
+      {name:"Ayam Geprek Level 3", qty:1, price:18000},
+      {name:"Es Teh Manis", qty:1, price:5000},
+      {name:"Nasi Putih", qty:1, price:5000},
+    ]},
+];
+let lastScannedReceipt = null;
+
+function hashCode(str){
+  let hash = 0;
+  for(let i=0;i<str.length;i++){ hash = ((hash<<5)-hash) + str.charCodeAt(i); hash |= 0; }
+  return hash;
+}
+
+function handleReceiptUpload(input){
+  if(!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  document.getElementById('uploadZoneLabel').textContent = '📎 ' + file.name;
+  document.getElementById('receiptResult').innerHTML = '';
+  document.getElementById('scanStatus').innerHTML = `<div class="scan-status"><span class="spinner"></span>AI sedang membaca struk...</div>`;
+
+  setTimeout(()=>{
+    const idx = Math.abs(hashCode(file.name + file.size)) % receiptTemplates.length;
+    const receipt = receiptTemplates[idx];
+    lastScannedReceipt = receipt;
+    renderReceiptResult(receipt);
+    document.getElementById('scanStatus').innerHTML = `<div class="scan-status">✅ Berhasil dibaca dari struk ${receipt.merchant}</div>`;
+  }, 1300);
+}
+
+function renderReceiptResult(receipt){
+  const total = receipt.items.reduce((s,it)=> s + it.qty*it.price, 0);
+  const rows = receipt.items.map(it=> `<tr><td>${it.name}</td><td class="num">${it.qty}</td><td class="num">${rupiah(it.price)}</td><td class="num">${rupiah(it.qty*it.price)}</td></tr>`).join('');
+  document.getElementById('receiptResult').innerHTML = `
+    <div class="receipt-result">
+      <div style="margin-bottom:8px;"><b>${receipt.merchant}</b> — terdeteksi sebagai <b>${receipt.kind}</b></div>
+      <table>
+        <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Harga</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="text-align:right;margin-top:6px;font-size:13px;"><b>Total: ${rupiah(total)}</b></div>
+      <button class="btn small" style="margin-top:10px;" onclick="addScannedReceipt()">+ Tambahkan ke Tracker</button>
+      <p style="font-size:10px;color:#a39d89;margin-top:8px;">*Simulasi tampilan untuk demo — hasil scan sungguhan akan mengikuti isi struk asli.</p>
+    </div>
+  `;
+}
+
+function addScannedReceipt(){
+  if(!lastScannedReceipt) return;
+  const total = lastScannedReceipt.items.reduce((s,it)=> s + it.qty*it.price, 0);
+  const today = new Date().toISOString().slice(0,10);
+  state.transactions.push({date: today, kind: lastScannedReceipt.kind, name: lastScannedReceipt.merchant, qty: 1, price: total});
+  document.getElementById('receiptResult').innerHTML = '<div class="scan-status">✅ Ditambahkan ke Tracker! Cek di tab Tracker Jajan &amp; Nongkrong.</div>';
+  document.getElementById('scanStatus').innerHTML = '';
+  document.getElementById('uploadZoneLabel').textContent = '📷 Klik untuk unggah foto struk';
+  lastScannedReceipt = null;
+  renderAll();
+}
+
+// ---------- streak ----------
+function computeStreak(){
+  const dates = [...new Set(state.transactions.map(t=>t.date))].sort();
+  if(dates.length===0) return 0;
+  let streak = 1;
+  for(let i=dates.length-1;i>0;i--){
+    const diff = (new Date(dates[i]) - new Date(dates[i-1])) / (1000*60*60*24);
+    if(diff===1) streak++; else break;
+  }
+  return streak;
+}
+
+// ---------- prediction ----------
+function calcPrediction(actualTotal){
+  const elapsedDays = Math.max(new Set(state.transactions.map(t=>t.date)).size, 1);
+  const totalDays = 30;
+  const remainingDays = Math.max(totalDays - elapsedDays, 0);
+  const avgDaily = actualTotal / elapsedDays;
+  const projectedAdditional = avgDaily * remainingDays;
+  const projectedVariableTotal = actualTotal + projectedAdditional;
+  return {elapsedDays, totalDays, remainingDays, avgDaily, projectedVariableTotal};
+}
+
+function renderPrediction(incomeTotal, savingsTotal, fixedTotal, actualTotal){
+  const el = document.getElementById('predictionBanner');
+  if(!el) return;
+  if(state.transactions.length === 0){
+    el.innerHTML = `<div class="banner neutral">💡 Prediksi bulanan akan muncul di sini setelah kamu mulai mencatat transaksi jajan/nongkrong.</div>`;
+    return;
+  }
+  const p = calcPrediction(actualTotal);
+  const projectedSisa = incomeTotal - savingsTotal - fixedTotal - p.projectedVariableTotal;
+  if(projectedSisa < 0){
+    el.innerHTML = `<div class="banner warn">⚠️ <b>Waspada!</b> Kalau pola jajan/nongkrongmu tetap segini (${rupiah(p.avgDaily)}/hari), uangmu diproyeksi <b>habis sebelum akhir bulan</b> — kira-kira defisit ${rupiah(Math.abs(projectedSisa))}. Coba direm dulu ya 🙏</div>`;
+  } else {
+    el.innerHTML = `<div class="banner ok">✅ Aman! Dengan pola sekarang (${rupiah(p.avgDaily)}/hari), sisa uangmu diproyeksi sekitar ${rupiah(projectedSisa)} di akhir bulan.</div>`;
+  }
+}
+
+// ---------- fitur plus tab ----------
+function renderBenchmark(actualTotal){
+  const communityAvg = 210000; // contoh ilustrasi, belum data asli
+  const el = document.getElementById('benchContent');
+  if(!el) return;
+  const maxVal = Math.max(actualTotal, communityAvg, 1);
+  el.innerHTML = `
+    <div class="bench-row">
+      <div class="bench-label"><span>Kamu</span><span>${rupiah(actualTotal)}</span></div>
+      <div class="bench-bar-bg"><div class="bench-bar-fill" style="width:${(actualTotal/maxVal*100).toFixed(0)}%;background:var(--mint);"></div></div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label"><span>Rata-rata Mahasiswa IKBIS</span><span>${rupiah(communityAvg)}</span></div>
+      <div class="bench-bar-bg"><div class="bench-bar-fill" style="width:${(communityAvg/maxVal*100).toFixed(0)}%;background:var(--coin);"></div></div>
+    </div>
+    <p style="font-size:10px;color:#a39d89;margin-top:8px;">*Contoh ilustrasi — data komunitas asli akan terkumpul setelah banyak pengguna aktif.</p>
+  `;
+}
+
+function renderPlus(actualTotal){
+  const streak = computeStreak();
+  document.getElementById('streakBadge').textContent = `🔥 ${streak} hari streak`;
+  const streakEl = document.getElementById('plus-streak-num');
+  if(streakEl) streakEl.textContent = streak;
+
+  const detailEl = document.getElementById('plus-prediction-detail');
+  if(detailEl){
+    if(state.transactions.length === 0){
+      detailEl.textContent = 'Belum ada transaksi untuk dianalisis.';
+    } else {
+      const p = calcPrediction(actualTotal);
+      detailEl.innerHTML = `Rata-rata pengeluaran jajan/nongkrongmu <b>${rupiah(p.avgDaily)}/hari</b> (dari ${p.elapsedDays} hari tercatat). Kalau polanya sama sampai akhir bulan (~${p.remainingDays} hari lagi), totalnya diproyeksi jadi <b>${rupiah(p.projectedVariableTotal)}</b>.`;
+    }
+  }
+  renderBenchmark(actualTotal);
+}
+
+function renderSummary(incomeTotal, savingsTotal, fixedTotal, variableActualTotal, planActualObj){
+  const totalExpense = fixedTotal + variableActualTotal;
+  const sisa = incomeTotal - savingsTotal - totalExpense;
+  const strip = document.getElementById('summaryStrip');
+  strip.innerHTML = `
+    <div class="sum-card"><div class="label">Total Pendapatan</div><div class="value">${rupiah(incomeTotal)}</div></div>
+    <div class="sum-card accent"><div class="label">Ditabung Bulan Ini</div><div class="value">${rupiah(savingsTotal)}</div></div>
+    <div class="sum-card"><div class="label">Total Pengeluaran</div><div class="value">${rupiah(totalExpense)}</div></div>
+    <div class="sum-card ${sisa<0?'negative':''}"><div class="label">Sisa Uang Bulan Ini</div><div class="value">${rupiah(sisa)}</div></div>
+  `;
+}
+
+function renderAll(){
+  const incomeTotal = renderIncome();
+  const savingsTotal = renderSavings();
+  const fixedTotal = renderFixed();
+  const {planTotal, actualTotal} = renderVariable();
+  renderDebt();
+  renderTransactions();
+  renderSummary(incomeTotal, savingsTotal, fixedTotal, actualTotal, {planTotal, actualTotal});
+  renderPrediction(incomeTotal, savingsTotal, fixedTotal, actualTotal);
+  renderPlus(actualTotal);
+}
+
+// ---------- mutations ----------
+function updateField(table, index, field, value){
+  const numericFields = ['amount','plan','actual','qty','price'];
+  state[table][index][field] = numericFields.includes(field) ? Number(value) : value;
+  renderAll();
+}
+
+function removeRow(table, index){
+  state[table].splice(index,1);
+  renderAll();
+}
+
+function addRow(table){
+  const defaults = {
+    income: {source:"Sumber Baru", type:"Aktif", amount:0},
+    savings: {desc:"Tujuan Baru", priority:"Sedang", amount:0},
+    fixed: {category:"Kategori Baru", amount:0},
+    variable: {category:"Kategori Baru", plan:0, actual:0, auto:false},
+    debt: {name:"Nama Baru", due:"1", amount:0, status:"Belum Bayar"},
+  };
+  state[table].push({...defaults[table]});
+  renderAll();
+}
+
+function quickAddTransaction(){
+  const kind = document.getElementById('qa-kind').value;
+  const name = document.getElementById('qa-name').value.trim();
+  const qty = Number(document.getElementById('qa-qty').value) || 1;
+  const price = Number(document.getElementById('qa-price').value) || 0;
+  if(!name || price <= 0){
+    alert('Isi nama item dan harga satuan ya.');
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  state.transactions.push({date: today, kind, name, qty, price});
+  document.getElementById('qa-name').value = '';
+  document.getElementById('qa-qty').value = 1;
+  document.getElementById('qa-price').value = '';
+  renderAll();
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    document.getElementById('tab-budget').style.display = target==='budget' ? 'block' : 'none';
+    document.getElementById('tab-tracker').style.display = target==='tracker' ? 'block' : 'none';
+    document.getElementById('tab-plus').style.display = target==='plus' ? 'block' : 'none';
+  });
+});
+
+renderAll();
+</script>
+</body>
+</html>
