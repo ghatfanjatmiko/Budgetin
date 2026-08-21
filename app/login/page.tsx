@@ -1,26 +1,45 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${location.origin}/auth/callback` },
-    });
+    const { error } = await supabase.auth.signInWithOtp({ email });
     setLoading(false);
     if (error) setError(error.message);
-    else setSent(true);
+    else setStep("code");
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: "email",
+    });
+    setLoading(false);
+    if (error) {
+      setError("Kode salah atau sudah kedaluwarsa. Coba kirim ulang.");
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh();
   }
 
   return (
@@ -31,13 +50,8 @@ export default function LoginPage() {
         <h1 className="font-bold text-2xl text-ledger mb-1">Budgetin&apos;</h1>
         <p className="text-sm text-gray-400 mb-6">Masuk ke akunmu</p>
 
-        {sent ? (
-          <p className="text-sm text-ledger leading-relaxed">
-            Link login sudah dikirim ke <b>{email}</b>. Cek inbox (atau folder
-            spam) kamu, lalu klik link-nya untuk masuk.
-          </p>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+        {step === "email" ? (
+          <form onSubmit={handleSendCode} className="space-y-4">
             <div>
               <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">
                 Email
@@ -57,12 +71,53 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full bg-ledger text-white text-sm font-medium rounded-full py-3 disabled:opacity-50"
             >
-              {loading ? "Mengirim..." : "Kirim Link Login"}
+              {loading ? "Mengirim..." : "Kirim Kode Login"}
             </button>
             <p className="text-[11px] text-gray-400 leading-relaxed">
-              Tidak perlu password — kamu akan menerima link login lewat
-              email (magic link).
+              Kamu akan menerima kode 6 digit lewat email — nggak perlu klik
+              link, tinggal ketik kodenya di sini.
             </p>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyCode} className="space-y-4">
+            <p className="text-sm text-ledger leading-relaxed">
+              Kode dikirim ke <b>{email}</b>. Cek email (atau spam), lalu
+              masukkan kode 6 digitnya di bawah ini.
+            </p>
+            <div>
+              <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">
+                Kode Verifikasi
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                className="w-full rounded-xl border border-line px-4 py-3 text-center text-2xl tracking-[0.5em] bg-paper focus:outline-none focus:border-mint"
+                placeholder="------"
+              />
+            </div>
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading || code.length !== 6}
+              className="w-full bg-ledger text-white text-sm font-medium rounded-full py-3 disabled:opacity-50"
+            >
+              {loading ? "Memverifikasi..." : "Masuk"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStep("email");
+                setCode("");
+                setError("");
+              }}
+              className="w-full text-xs text-gray-400"
+            >
+              Ganti email / kirim ulang kode
+            </button>
           </form>
         )}
       </div>

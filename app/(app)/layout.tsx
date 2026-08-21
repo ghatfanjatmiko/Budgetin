@@ -1,4 +1,4 @@
-import Nav from "@/components/Nav";
+import AppNav from "@/components/AppNav";
 
 export default function AppLayout({
   children,
@@ -7,8 +7,10 @@ export default function AppLayout({
 }) {
   return (
     <div className="min-h-screen bg-paper text-ink">
-      <Nav />
-      <div className="max-w-4xl mx-auto px-5 pb-20">{children}</div>
+      <AppNav />
+      <div className="md:ml-60 px-5 py-6 pb-24 md:pb-10 max-w-2xl md:max-w-3xl mx-auto md:mx-0 md:px-10">
+        {children}
+      </div>
     </div>
   );
 }

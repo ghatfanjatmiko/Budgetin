@@ -1,499 +1,252 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah, currentMonthStart } from "@/lib/format";
-import type {
-  Income,
-  Saving,
-  FixedExpense,
-  VariableExpense,
-  SubscriptionDebt,
-} from "@/lib/types";
+import { Wallet, TrendingDown, PiggyBank, ChevronRight, ShieldCheck } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+} from "recharts";
 
-export default function DashboardPage() {
+type Tx = { id: string; date: string; kind: "Jajan" | "Nongkrong"; name: string; price: number; qty: number };
+
+export default function HomePage() {
   const supabase = createClient();
   const month = currentMonthStart();
 
   const [loading, setLoading] = useState(true);
-  const [income, setIncome] = useState<Income[]>([]);
-  const [savings, setSavings] = useState<Saving[]>([]);
-  const [fixed, setFixed] = useState<FixedExpense[]>([]);
-  const [variable, setVariable] = useState<VariableExpense[]>([]);
-  const [debts, setDebts] = useState<SubscriptionDebt[]>([]);
-  const [autoActual, setAutoActual] = useState(0);
-
-  async function loadAll() {
-    setLoading(true);
-    const [i, s, f, v, d, t] = await Promise.all([
-      supabase.from("income").select("*").eq("month", month).order("created_at"),
-      supabase.from("savings").select("*").eq("month", month).order("created_at"),
-      supabase.from("fixed_expenses").select("*").eq("month", month).order("created_at"),
-      supabase.from("variable_expenses").select("*").eq("month", month).order("created_at"),
-      supabase.from("subscriptions_debts").select("*").order("created_at"),
-      supabase.from("transactions").select("qty, price").gte("date", month),
-    ]);
-    setIncome(i.data ?? []);
-    setSavings(s.data ?? []);
-    setFixed(f.data ?? []);
-    setVariable(v.data ?? []);
-    setDebts(d.data ?? []);
-    const total = (t.data ?? []).reduce(
-      (sum: number, r: any) => sum + Number(r.qty) * Number(r.price),
-      0
-    );
-    setAutoActual(total);
-    setLoading(false);
-  }
+  const [greetingName, setGreetingName] = useState("");
+  const [incomeTotal, setIncomeTotal] = useState(0);
+  const [savingsTotal, setSavingsTotal] = useState(0);
+  const [fixedTotal, setFixedTotal] = useState(0);
+  const [planTotal, setPlanTotal] = useState(0);
+  const [actualTotal, setActualTotal] = useState(0);
+  const [recentTx, setRecentTx] = useState<Tx[]>([]);
+  const [chartData, setChartData] = useState<{ day: string; total: number }[]>([]);
+  const [lastMonthActual, setLastMonthActual] = useState(0);
 
   useEffect(() => {
-    loadAll();
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function currentUserId() {
+  async function load() {
+    setLoading(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    return user!.id;
-  }
+    setGreetingName(user?.email?.split("@")[0] ?? "");
 
-  // ---------- Income ----------
-  async function addIncome() {
-    await supabase.from("income").insert({
-      user_id: await currentUserId(),
-      month,
-      source: "Sumber Baru",
-      type: "Aktif",
-      amount: 0,
+    const now = new Date();
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthStart = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, "0")}-01`;
+
+    const [i, s, f, v, tx, txLast] = await Promise.all([
+      supabase.from("income").select("amount").eq("month", month),
+      supabase.from("savings").select("amount").eq("month", month),
+      supabase.from("fixed_expenses").select("amount").eq("month", month),
+      supabase.from("variable_expenses").select("plan_amount").eq("month", month),
+      supabase.from("transactions").select("*").gte("date", month).order("date", { ascending: false }),
+      supabase
+        .from("transactions")
+        .select("qty, price")
+        .gte("date", lastMonthStart)
+        .lt("date", month),
+    ]);
+
+    const inc = (i.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
+    const sav = (s.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
+    const fix = (f.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
+    const plan = (v.data ?? []).reduce((s, r: any) => s + Number(r.plan_amount), 0);
+    const txData = (tx.data ?? []) as Tx[];
+    const actual = txData.reduce((s, r) => s + Number(r.qty) * Number(r.price), 0);
+    const lastActual = (txLast.data ?? []).reduce(
+      (s: number, r: any) => s + Number(r.qty) * Number(r.price),
+      0
+    );
+
+    setIncomeTotal(inc);
+    setSavingsTotal(sav);
+    setFixedTotal(fix);
+    setPlanTotal(plan + fix);
+    setActualTotal(actual);
+    setLastMonthActual(lastActual);
+    setRecentTx(txData.slice(0, 5));
+
+    // group by day for the mini chart
+    const byDay: Record<string, number> = {};
+    txData.forEach((t) => {
+      const d = t.date.slice(8, 10);
+      byDay[d] = (byDay[d] || 0) + Number(t.qty) * Number(t.price);
     });
-    loadAll();
-  }
-  async function updateIncome(id: string, field: string, value: any) {
-    await supabase.from("income").update({ [field]: value }).eq("id", id);
-    loadAll();
-  }
-  async function removeIncome(id: string) {
-    await supabase.from("income").delete().eq("id", id);
-    loadAll();
+    setChartData(
+      Object.entries(byDay)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([day, total]) => ({ day, total }))
+    );
+
+    setLoading(false);
   }
 
-  // ---------- Savings ----------
-  async function addSaving() {
-    await supabase.from("savings").insert({
-      user_id: await currentUserId(),
-      month,
-      description: "Tujuan Baru",
-      priority: "Sedang",
-      amount: 0,
-    });
-    loadAll();
-  }
-  async function updateSaving(id: string, field: string, value: any) {
-    await supabase.from("savings").update({ [field]: value }).eq("id", id);
-    loadAll();
-  }
-  async function removeSaving(id: string) {
-    await supabase.from("savings").delete().eq("id", id);
-    loadAll();
-  }
-
-  // ---------- Fixed expenses ----------
-  async function addFixed() {
-    await supabase.from("fixed_expenses").insert({
-      user_id: await currentUserId(),
-      month,
-      category: "Kategori Baru",
-      amount: 0,
-    });
-    loadAll();
-  }
-  async function updateFixed(id: string, field: string, value: any) {
-    await supabase.from("fixed_expenses").update({ [field]: value }).eq("id", id);
-    loadAll();
-  }
-  async function removeFixed(id: string) {
-    await supabase.from("fixed_expenses").delete().eq("id", id);
-    loadAll();
-  }
-
-  // ---------- Variable expenses ----------
-  async function addVariable() {
-    await supabase.from("variable_expenses").insert({
-      user_id: await currentUserId(),
-      month,
-      category: "Kategori Baru",
-      plan_amount: 0,
-      is_auto: false,
-    });
-    loadAll();
-  }
-  async function updateVariable(id: string, field: string, value: any) {
-    await supabase.from("variable_expenses").update({ [field]: value }).eq("id", id);
-    loadAll();
-  }
-  async function removeVariable(id: string) {
-    await supabase.from("variable_expenses").delete().eq("id", id);
-    loadAll();
-  }
-
-  // ---------- Subscriptions / debts ----------
-  async function addDebt() {
-    await supabase.from("subscriptions_debts").insert({
-      user_id: await currentUserId(),
-      name: "Nama Baru",
-      due_day: 1,
-      amount: 0,
-      status: "Belum Bayar",
-    });
-    loadAll();
-  }
-  async function updateDebt(id: string, field: string, value: any) {
-    await supabase.from("subscriptions_debts").update({ [field]: value }).eq("id", id);
-    loadAll();
-  }
-  async function removeDebt(id: string) {
-    await supabase.from("subscriptions_debts").delete().eq("id", id);
-    loadAll();
-  }
-
-  const incomeTotal = income.reduce((s, r) => s + Number(r.amount), 0);
-  const savingsTotal = savings.reduce((s, r) => s + Number(r.amount), 0);
-  const fixedTotal = fixed.reduce((s, r) => s + Number(r.amount), 0);
-  const totalExpense = fixedTotal + autoActual;
+  const totalExpense = fixedTotal + actualTotal;
   const sisa = incomeTotal - savingsTotal - totalExpense;
+  const budgetPct = planTotal > 0 ? Math.max(0, Math.min(100, ((planTotal - totalExpense) / planTotal) * 100)) : 100;
+  const pctVsLastMonth =
+    lastMonthActual > 0 ? (((lastMonthActual - actualTotal) / lastMonthActual) * 100).toFixed(1) : null;
 
-  if (loading) {
-    return <p className="text-sm text-gray-400 py-10">Memuat data...</p>;
-  }
+  if (loading) return <p className="text-sm text-gray-400 py-10">Memuat data...</p>;
 
   return (
-    <div>
-      {/* Ringkasan */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <SummaryCard label="Total Pendapatan" value={rupiah(incomeTotal)} />
-        <SummaryCard label="Ditabung Bulan Ini" value={rupiah(savingsTotal)} accent />
-        <SummaryCard label="Total Pengeluaran" value={rupiah(totalExpense)} />
-        <SummaryCard
-          label="Sisa Uang Bulan Ini"
-          value={rupiah(sisa)}
-          negative={sisa < 0}
-        />
+    <div className="space-y-4">
+      {/* Greeting */}
+      <div className="flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Budgetin' logo" className="w-11 h-11 rounded-xl" />
+        <div>
+          <p className="text-sm text-gray-500">
+            Halo, <span className="font-semibold text-ledger">{greetingName || "kamu"}</span> 👋
+          </p>
+          <p className="text-xs text-gray-400 capitalize">
+            {new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })}
+          </p>
+        </div>
       </div>
 
-      {/* Pendapatan */}
-      <Section title="Pendapatan" total={rupiah(incomeTotal)} onAdd={addIncome}>
-        <Table head={["Sumber", "Tipe", "Jumlah", ""]}>
-          {income.map((row) => (
-            <tr key={row.id} className="border-b border-dashed border-line">
-              <Td>
-                <TextInput
-                  value={row.source}
-                  onCommit={(v) => updateIncome(row.id, "source", v)}
-                />
-              </Td>
-              <Td>
-                <select
-                  defaultValue={row.type}
-                  onChange={(e) => updateIncome(row.id, "type", e.target.value)}
-                  className="bg-transparent text-sm"
-                >
-                  <option>Aktif</option>
-                  <option>Pasif</option>
-                </select>
-              </Td>
-              <TdNum>
-                <NumberInput
-                  value={row.amount}
-                  onCommit={(v) => updateIncome(row.id, "amount", v)}
-                />
-              </TdNum>
-              <TdAction>
-                <DeleteButton onClick={() => removeIncome(row.id)} />
-              </TdAction>
-            </tr>
-          ))}
-        </Table>
-      </Section>
+      {/* Balance card */}
+      <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500 mb-1">Sisa uang bulan ini</p>
+          <p className={`text-3xl font-bold ${sisa < 0 ? "text-danger" : "text-ledger"}`}>
+            {rupiah(sisa)}
+          </p>
+          {pctVsLastMonth && (
+            <p className={`text-xs mt-1 ${Number(pctVsLastMonth) >= 0 ? "text-leaf" : "text-danger"}`}>
+              {Number(pctVsLastMonth) >= 0 ? "↑" : "↓"} {Math.abs(Number(pctVsLastMonth))}% dari bulan lalu
+            </p>
+          )}
+        </div>
+        <div className="w-14 h-14 rounded-2xl bg-coin/20 flex items-center justify-center">
+          <Wallet className="text-coin" size={26} />
+        </div>
+      </div>
 
-      {/* Nabung */}
-      <Section title="Nabung" total={rupiah(savingsTotal)} onAdd={addSaving}>
-        <Table head={["Keterangan", "Prioritas", "Jumlah", ""]}>
-          {savings.map((row) => (
-            <tr key={row.id} className="border-b border-dashed border-line">
-              <Td>
-                <TextInput
-                  value={row.description}
-                  onCommit={(v) => updateSaving(row.id, "description", v)}
-                />
-              </Td>
-              <Td>
-                <TextInput
-                  value={row.priority ?? ""}
-                  onCommit={(v) => updateSaving(row.id, "priority", v)}
-                />
-              </Td>
-              <TdNum>
-                <NumberInput
-                  value={row.amount}
-                  onCommit={(v) => updateSaving(row.id, "amount", v)}
-                />
-              </TdNum>
-              <TdAction>
-                <DeleteButton onClick={() => removeSaving(row.id)} />
-              </TdAction>
-            </tr>
-          ))}
-        </Table>
-      </Section>
+      {/* Budget health */}
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        <div className="flex justify-between items-center mb-2">
+          <p className="font-semibold text-sm text-ledger">Budget Health</p>
+          <p className="text-xs text-gray-500">{budgetPct.toFixed(0)}% budget tersisa</p>
+        </div>
+        <div className="h-2.5 bg-line rounded-full overflow-hidden mb-3">
+          <div
+            className={`h-full rounded-full ${budgetPct < 20 ? "bg-danger" : "bg-leaf"}`}
+            style={{ width: `${budgetPct}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-gray-500 mb-3">
+          <span>
+            Aktual <b className="text-ink">{rupiah(totalExpense)}</b>
+          </span>
+          <span>
+            Rencana <b className="text-ink">{rupiah(planTotal)}</b>
+          </span>
+        </div>
+        <div className="bg-leaf/10 text-leaf text-xs rounded-xl px-3 py-2 flex items-center gap-2">
+          <ShieldCheck size={14} />
+          {budgetPct > 20 ? "Kamu masih dalam batas aman bulan ini." : "Hati-hati, budgetmu hampir habis."}
+        </div>
+      </div>
 
-      {/* Pengeluaran Tetap */}
-      <Section title="Pengeluaran Tetap" total={rupiah(fixedTotal)} onAdd={addFixed}>
-        <Table head={["Kategori", "Jumlah", ""]}>
-          {fixed.map((row) => (
-            <tr key={row.id} className="border-b border-dashed border-line">
-              <Td>
-                <TextInput
-                  value={row.category}
-                  onCommit={(v) => updateFixed(row.id, "category", v)}
-                />
-              </Td>
-              <TdNum>
-                <NumberInput
-                  value={row.amount}
-                  onCommit={(v) => updateFixed(row.id, "amount", v)}
-                />
-              </TdNum>
-              <TdAction>
-                <DeleteButton onClick={() => removeFixed(row.id)} />
-              </TdAction>
-            </tr>
-          ))}
-        </Table>
-      </Section>
+      {/* 3-stat grid */}
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard icon={Wallet} label="Pendapatan" value={rupiah(incomeTotal)} color="text-leaf" bg="bg-leaf/10" />
+        <StatCard icon={TrendingDown} label="Pengeluaran" value={rupiah(totalExpense)} color="text-danger" bg="bg-danger/10" />
+        <StatCard icon={PiggyBank} label="Tabungan" value={rupiah(savingsTotal)} color="text-leaf" bg="bg-leaf/10" />
+      </div>
 
-      {/* Pengeluaran Tidak Tetap */}
-      <Section title="Pengeluaran Tidak Tetap" onAdd={addVariable}>
-        <Table head={["Kategori", "Rencana", "Aktual", ""]}>
-          {variable.map((row) => (
-            <tr key={row.id} className="border-b border-dashed border-line">
-              <Td>
-                {row.is_auto ? (
-                  <span>{row.category}</span>
-                ) : (
-                  <TextInput
-                    value={row.category}
-                    onCommit={(v) => updateVariable(row.id, "category", v)}
-                  />
-                )}
-              </Td>
-              <TdNum>
-                <NumberInput
-                  value={row.plan_amount}
-                  onCommit={(v) => updateVariable(row.id, "plan_amount", v)}
-                />
-              </TdNum>
-              <TdNum>
-                {row.is_auto ? (
-                  <span title="Otomatis dari Tracker">{rupiah(autoActual)} 🔗</span>
-                ) : (
-                  "—"
-                )}
-              </TdNum>
-              <TdAction>
-                {!row.is_auto && <DeleteButton onClick={() => removeVariable(row.id)} />}
-              </TdAction>
-            </tr>
-          ))}
-        </Table>
-        <p className="text-[11px] text-gray-400 mt-2">
-          Tambahkan baris dengan kategori &quot;Jajan &amp; Nongkrong&quot; dan
-          set <code>is_auto = true</code> di Supabase supaya otomatis
-          terhubung ke total transaksi Tracker.
-        </p>
-      </Section>
+      {/* Jajan & Nongkrong mini chart */}
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <p className="text-sm text-gray-500">Jajan &amp; Nongkrong</p>
+            <p className="text-xl font-bold text-ledger">{rupiah(actualTotal)}</p>
+            <p className="text-xs text-gray-400">{recentTx.length > 0 ? `${chartData.length} hari tercatat` : "Belum ada transaksi"}</p>
+          </div>
+          <Link href="/insights" className="text-xs text-ledger flex items-center gap-1">
+            Lihat detail <ChevronRight size={14} />
+          </Link>
+        </div>
+        {chartData.length > 0 && (
+          <div className="h-24 -mx-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+                <Bar dataKey="total" fill="#D9A94A" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
 
-      {/* Langganan & Hutang */}
-      <Section
-        title="Langganan & Hutang"
-        total={rupiah(debts.reduce((s, r) => s + Number(r.amount), 0))}
-        onAdd={addDebt}
-      >
-        <Table head={["Nama", "Jatuh Tempo", "Jumlah", "Status", ""]}>
-          {debts.map((row) => (
-            <tr key={row.id} className="border-b border-dashed border-line">
-              <Td>
-                <TextInput
-                  value={row.name}
-                  onCommit={(v) => updateDebt(row.id, "name", v)}
-                />
-              </Td>
-              <Td>
-                <input
-                  type="number"
-                  defaultValue={row.due_day ?? 1}
-                  onBlur={(e) => updateDebt(row.id, "due_day", Number(e.target.value))}
-                  className="w-14 bg-transparent text-sm"
-                />{" "}
-                tiap bulan
-              </Td>
-              <TdNum>
-                <NumberInput
-                  value={row.amount}
-                  onCommit={(v) => updateDebt(row.id, "amount", v)}
-                />
-              </TdNum>
-              <Td>
-                <select
-                  defaultValue={row.status}
-                  onChange={(e) => updateDebt(row.id, "status", e.target.value)}
-                  className="bg-transparent text-sm"
-                >
-                  <option>Belum Bayar</option>
-                  <option>Lunas</option>
-                </select>
-              </Td>
-              <TdAction>
-                <DeleteButton onClick={() => removeDebt(row.id)} />
-              </TdAction>
-            </tr>
-          ))}
-        </Table>
-      </Section>
+      {/* Recent transactions */}
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        <div className="flex justify-between items-center mb-3">
+          <p className="font-semibold text-sm text-ledger">Transaksi Terakhir</p>
+          <Link href="/tracker" className="text-xs text-ledger flex items-center gap-1">
+            Lihat semua <ChevronRight size={14} />
+          </Link>
+        </div>
+        {recentTx.length === 0 ? (
+          <p className="text-xs text-gray-400 py-4 text-center">Belum ada transaksi bulan ini.</p>
+        ) : (
+          <div className="space-y-3">
+            {recentTx.map((t) => (
+              <div key={t.id} className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center ${t.kind === "Jajan" ? "bg-coin/20" : "bg-leaf/10"}`}>
+                    {t.kind === "Jajan" ? "🍿" : "☕"}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-ink">{t.name}</p>
+                    <p className="text-xs text-gray-400">{t.kind}</p>
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-ink">{rupiah(Number(t.qty) * Number(t.price))}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// ---------- Reusable bits ----------
-
-function SummaryCard({
+function StatCard({
+  icon: Icon,
   label,
   value,
-  accent,
-  negative,
+  color,
+  bg,
 }: {
+  icon: any;
   label: string;
   value: string;
-  accent?: boolean;
-  negative?: boolean;
+  color: string;
+  bg: string;
 }) {
   return (
-    <div className="bg-white p-4 rounded-2xl shadow-sm">
-      <div className="text-xs text-gray-400 mb-1">{label}</div>
-      <div
-        className={`font-bold text-xl ${
-          negative ? "text-danger" : accent ? "text-leaf" : "text-ledger"
-        }`}
-      >
-        {value}
+    <div className="bg-white rounded-2xl shadow-sm p-3 flex flex-col items-start gap-2">
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bg}`}>
+        <Icon size={15} className={color} />
+      </div>
+      <div>
+        <p className="text-[11px] text-gray-400">{label}</p>
+        <p className="text-sm font-semibold text-ink">{value}</p>
       </div>
     </div>
-  );
-}
-
-function Section({
-  title,
-  total,
-  onAdd,
-  children,
-}: {
-  title: string;
-  total?: string;
-  onAdd: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="mb-6 bg-white rounded-2xl shadow-sm p-4">
-      <div className="flex justify-between items-center mb-3">
-        <h2 className="text-sm font-semibold text-ledger">{title}</h2>
-        {total && <span className="text-xs text-gray-400">total: {total}</span>}
-      </div>
-      {children}
-      <button
-        onClick={onAdd}
-        className="mt-3 text-xs font-medium text-ledger bg-paper rounded-full px-4 py-2 hover:bg-line"
-      >
-        + Tambah
-      </button>
-    </div>
-  );
-}
-
-function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-xs text-gray-400 border-b border-line">
-          {head.map((h, i) => (
-            <th
-              key={i}
-              className={`py-2 px-2 font-normal ${
-                i === 0 ? "text-left" : i === head.length - 1 ? "" : "text-right"
-              }`}
-            >
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>{children}</tbody>
-    </table>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return <td className="p-2">{children}</td>;
-}
-function TdNum({ children }: { children: React.ReactNode }) {
-  return <td className="p-2 text-right">{children}</td>;
-}
-function TdAction({ children }: { children: React.ReactNode }) {
-  return <td className="p-2 text-right whitespace-nowrap">{children}</td>;
-}
-
-function TextInput({
-  value,
-  onCommit,
-}: {
-  value: string;
-  onCommit: (v: string) => void;
-}) {
-  return (
-    <input
-      defaultValue={value}
-      onBlur={(e) => e.target.value !== value && onCommit(e.target.value)}
-      className="w-full bg-transparent text-sm focus:outline-none focus:bg-paper"
-    />
-  );
-}
-
-function NumberInput({
-  value,
-  onCommit,
-}: {
-  value: number;
-  onCommit: (v: number) => void;
-}) {
-  return (
-    <input
-      type="number"
-      defaultValue={value}
-      onBlur={(e) => {
-        const n = Number(e.target.value);
-        if (n !== value) onCommit(n);
-      }}
-      className="w-full bg-transparent text-sm text-right focus:outline-none focus:bg-paper"
-    />
-  );
-}
-
-function DeleteButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="text-xs text-danger rounded-full px-2.5 py-1 hover:bg-danger hover:text-white transition"
-    >
-      Hapus
-    </button>
   );
 }

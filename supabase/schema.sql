@@ -1,6 +1,11 @@
 -- ============================================================
 -- Budgetin' — Skema Database
 -- Jalankan file ini di Supabase Dashboard > SQL Editor
+--
+-- Sudah pernah jalanin versi lama file ini? Tinggal jalankan baris
+-- ini sendiri buat update tabel subscriptions_debts kamu:
+--   alter table subscriptions_debts add column if not exists type text not null default 'Langganan';
+--   alter table subscriptions_debts add constraint subscriptions_debts_type_check check (type in ('Langganan','Hutang'));
 -- ============================================================
 
 create extension if not exists "uuid-ossp";
@@ -60,6 +65,7 @@ create table if not exists transactions (
 create table if not exists subscriptions_debts (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null default 'Langganan' check (type in ('Langganan', 'Hutang')),
   name text not null,
   due_day int,
   amount numeric not null default 0,

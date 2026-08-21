@@ -36,6 +36,7 @@ export type Transaction = {
 
 export type SubscriptionDebt = {
   id: string;
+  type: "Langganan" | "Hutang";
   name: string;
   due_day: number | null;
   amount: number;
