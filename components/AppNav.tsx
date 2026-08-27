@@ -43,7 +43,7 @@ export default function AppNav() {
           })}
         </nav>
         <Link
-          href="/tracker"
+          href="/tracker/add"
           className="mt-auto flex items-center justify-center gap-2 rounded-2xl bg-coin py-3 text-sm font-bold text-ledger shadow-sm"
         >
           <Plus size={16} /> Catat Transaksi

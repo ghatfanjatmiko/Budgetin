@@ -4,7 +4,7 @@ Versi lengkap sesuai desain mockup: 5 halaman (Home, Budget, Tracker, Tagihan,
 Profil) + Insights + Scan Struk dengan AI beneran (bukan simulasi).
 
 **Yang sudah ada dan fungsional:**
-- Login pakai kode OTP 6 digit (bukan link) — tanpa keluar aplikasi
+- Login pakai email + password biasa (tanpa verifikasi email — lihat setup wajib di bawah) — siapapun bisa daftar sendiri
 - **Home** — saldo bulan ini, Budget Health bar, Streak &amp; Badge nyatet, ringkasan 3 kolom, mini chart, transaksi terakhir
 - **Budget** — form Pendapatan, Nabung, Pengeluaran Tetap/Tidak Tetap
 - **Tracker** — daftar transaksi dikelompokkan per hari, filter Jajan/Nongkrong, tombol tambah (+), **Split Nongkrong** (bagi tagihan + salin pesan WA)
@@ -70,24 +70,29 @@ Sama seperti sebelumnya — jalankan `supabase/schema.sql` di SQL Editor.
 Ambil **Project URL** dan **Publishable/anon key** dari Project Settings > API
 seperti biasa.
 
-### ⚠️ WAJIB: Edit template email supaya login pakai kode (bukan link)
+### ⚠️ WAJIB: Matikan "Confirm email" supaya login bisa dipakai siapapun
 
-Login sekarang pakai **kode 6 digit** yang diketik langsung di aplikasi — jadi
-kamu nggak perlu keluar app buat klik link di email lagi. Tapi supaya kodenya
-muncul di email, template default Supabase harus diedit dulu (defaultnya cuma
-nampilin tombol link, bukan kode):
+Login sekarang pakai **email + password biasa** (bukan kode/link email lagi)
+— supaya siapapun bisa langsung daftar & masuk tanpa kamu perlu setup SMTP,
+domain, atau invite manual satu-satu ke Supabase Team.
 
-1. Di Supabase Dashboard, buka **Authentication** → **Email Templates**.
-2. Pilih template **Magic Link**.
-3. Di bagian body/isi email, tambahkan baris ini di mana saja (boleh taruh di
-   atas tombol link yang sudah ada):
-   ```
-   Atau masukkan kode ini di aplikasi: {{ .Token }}
-   ```
-4. Klik **Save**.
+1. Di Supabase Dashboard, buka **Authentication** → **Sign In / Providers**.
+2. Klik provider **Email**.
+3. Matikan toggle **"Confirm email"**.
+4. Save.
 
-Tanpa langkah ini, email yang masuk cuma ada tombol link doang, nggak ada
-kode buat diketik — jangan sampai kelewat.
+**Kenapa ini penting:** kalau toggle ini masih nyala, Supabase akan tetap
+coba kirim email konfirmasi setiap ada yang daftar — dan balik lagi kena
+masalah "cuma bisa 1 email" yang sudah kita bahas sebelumnya. Dengan toggle
+ini dimatikan, akun langsung aktif begitu daftar, tidak ada email yang perlu
+dikirim sama sekali.
+
+**Trade-off yang perlu kamu tahu:** karena tidak ada verifikasi, orang bisa
+mendaftar pakai alamat email apapun (termasuk yang bukan miliknya) tanpa
+dicek kepemilikannya. Untuk demo/tugas kuliah dengan pengguna terbatas, ini
+risikonya kecil dan wajar dipakai di tahap awal. Kalau nanti aplikasi ini
+mau dirilis ke publik sungguhan, baru worth-it mikirin verifikasi email lagi
+(yang berarti perlu setup domain + SMTP provider seperti Resend).
 
 ## 2. Setup Scan Struk AI
 
