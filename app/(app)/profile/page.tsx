@@ -4,17 +4,42 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Crown, User, Shield, Sliders, FileDown, Database, HelpCircle, MessageSquare, ChevronRight, LogOut } from "lucide-react";
+import { Crown, User, Shield, Sliders, FileDown, Database, HelpCircle, MessageSquare, ChevronRight, LogOut, GraduationCap } from "lucide-react";
 
 export default function ProfilePage() {
   const supabase = createClient();
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [campus, setCampus] = useState("");
+  const [savingCampus, setSavingCampus] = useState(false);
+  const [savedTick, setSavedTick] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? ""));
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function load() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    setEmail(user?.email ?? "");
+    if (user) {
+      const { data } = await supabase.from("profiles").select("campus").eq("user_id", user.id).maybeSingle();
+      setCampus(data?.campus ?? "");
+    }
+  }
+
+  async function saveCampus() {
+    setSavingCampus(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await supabase.from("profiles").upsert({ user_id: user!.id, campus, updated_at: new Date().toISOString() });
+    setSavingCampus(false);
+    setSavedTick(true);
+    setTimeout(() => setSavedTick(false), 1500);
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -24,10 +49,10 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold text-ledger mb-1">Profil</h1>
+      <h1 className="page-title mb-1">Profil</h1>
 
       {/* User card */}
-      <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-3">
+      <div className="app-card flex items-center gap-3 p-5">
         <div className="w-12 h-12 rounded-full bg-ledger text-white flex items-center justify-center font-semibold">
           {email.charAt(0).toUpperCase() || "?"}
         </div>
@@ -38,7 +63,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Plus banner */}
-      <div className="bg-ledger rounded-2xl p-5 text-white">
+      <div className="rounded-[22px] bg-ledger p-5 text-white shadow-sm">
         <div className="flex items-center gap-2 mb-1">
           <Crown size={16} className="text-coin" />
           <p className="font-semibold text-sm">Budgetin&apos; Plus</p>
@@ -49,6 +74,32 @@ export default function ProfilePage() {
         <button className="bg-coin text-ledger text-sm font-semibold rounded-full px-4 py-2">
           Upgrade Sekarang
         </button>
+      </div>
+
+      {/* Kampus — dipakai untuk Benchmark Komunitas Kampus */}
+      <div className="app-card p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <GraduationCap size={16} className="text-ledger" />
+          <p className="font-semibold text-sm text-ledger">Kampus Kamu</p>
+        </div>
+        <p className="text-xs text-gray-400 mb-3">
+          Diisi supaya kamu bisa lihat perbandingan pengeluaran dengan mahasiswa lain di kampus yang sama (anonim &amp; agregat) di halaman Insights.
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={campus}
+            onChange={(e) => setCampus(e.target.value)}
+            placeholder="mis. IKBIS"
+            className="field-control flex-1"
+          />
+          <button
+            onClick={saveCampus}
+            disabled={savingCampus}
+            className="bg-ledger text-white text-sm font-medium rounded-xl px-4 disabled:opacity-50"
+          >
+            {savedTick ? "Tersimpan ✓" : savingCampus ? "..." : "Simpan"}
+          </button>
+        </div>
       </div>
 
       <ProfileSection title="Akun">
@@ -83,7 +134,7 @@ function ProfileSection({ title, children }: { title: string; children: React.Re
   return (
     <div>
       <p className="text-xs text-gray-400 mb-2 px-1">{title}</p>
-      <div className="bg-white rounded-2xl shadow-sm divide-y divide-line overflow-hidden">
+      <div className="app-card divide-y divide-line overflow-hidden">
         {children}
       </div>
     </div>

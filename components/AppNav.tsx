@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Wallet, Receipt, CreditCard, User, Plus } from "lucide-react";
+import { Home, PieChart, ReceiptText, FileClock, UserRound, Plus } from "lucide-react";
 
 const tabs = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/budget", label: "Budget", icon: Wallet },
-  { href: "/tracker", label: "Tracker", icon: Receipt },
-  { href: "/tagihan", label: "Tagihan", icon: CreditCard },
-  { href: "/profile", label: "Profil", icon: User },
+  { href: "/budget", label: "Budget", icon: PieChart },
+  { href: "/tracker", label: "Tracker", icon: ReceiptText },
+  { href: "/tagihan", label: "Tagihan", icon: FileClock },
+  { href: "/profile", label: "Profil", icon: UserRound },
 ];
 
 export default function AppNav() {
@@ -18,13 +18,13 @@ export default function AppNav() {
   return (
     <>
       {/* Sidebar — desktop */}
-      <aside className="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:left-0 md:w-60 bg-white border-r border-line px-5 py-7">
-        <div className="flex items-center gap-3 mb-8">
+      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-[272px] md:flex-col md:border-r md:border-line/70 md:bg-white md:px-6 md:py-8">
+        <div className="mb-10 flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Budgetin' logo" className="w-9 h-9 rounded-lg" />
-          <span className="font-bold text-lg text-ledger">Budgetin&apos;</span>
+          <span className="text-xl font-bold tracking-[-0.04em] text-ledger">Budgetin&apos;</span>
         </div>
-        <nav className="flex flex-col gap-1">
+        <nav className="flex flex-col gap-1.5">
           {tabs.map((t) => {
             const Icon = t.icon;
             const active = pathname === t.href || pathname.startsWith(t.href + "/");
@@ -33,7 +33,7 @@ export default function AppNav() {
                 key={t.href}
                 href={t.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                  active ? "bg-ledger text-white" : "text-gray-500 hover:bg-paper"
+                  active ? "bg-ledger text-white shadow-sm" : "text-gray-500 hover:bg-paper"
                 }`}
               >
                 <Icon size={18} />
@@ -44,14 +44,14 @@ export default function AppNav() {
         </nav>
         <Link
           href="/tracker"
-          className="mt-auto flex items-center justify-center gap-2 bg-coin text-ledger font-semibold text-sm rounded-full py-3"
+          className="mt-auto flex items-center justify-center gap-2 rounded-2xl bg-coin py-3 text-sm font-bold text-ledger shadow-sm"
         >
           <Plus size={16} /> Catat Transaksi
         </Link>
       </aside>
 
       {/* Bottom nav — mobile */}
-      <nav className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-white border-t border-line px-2 py-2 flex justify-around">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-line/70 bg-white px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = pathname === t.href || pathname.startsWith(t.href + "/");
@@ -63,7 +63,7 @@ export default function AppNav() {
                 active ? "text-ledger" : "text-gray-400"
               }`}
             >
-              <Icon size={20} strokeWidth={active ? 2.4 : 2} />
+              <Icon size={21} strokeWidth={active ? 2.6 : 1.8} />
               {t.label}
             </Link>
           );

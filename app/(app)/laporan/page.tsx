@@ -58,9 +58,9 @@ export default function LaporanPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold text-ledger mb-1">Unduh Laporan</h1>
+      <h1 className="page-title mb-1">Unduh Laporan</h1>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center text-center">
+      <div className="app-card flex flex-col items-center p-6 text-center">
         <div className="w-16 h-16 rounded-2xl bg-coin/20 flex items-center justify-center mb-3">
           <FileText size={28} className="text-coin" />
         </div>
@@ -70,14 +70,14 @@ export default function LaporanPage() {
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+      <div className="app-card space-y-4 p-5">
         <div>
           <label className="text-xs text-gray-500 mb-1 block">Dari</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="w-full border border-line rounded-xl px-3 py-2 text-sm bg-paper"
+            className="field-control"
           />
         </div>
         <div>
@@ -86,7 +86,7 @@ export default function LaporanPage() {
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="w-full border border-line rounded-xl px-3 py-2 text-sm bg-paper"
+            className="field-control"
           />
         </div>
       </div>
@@ -94,7 +94,7 @@ export default function LaporanPage() {
       <button
         onClick={downloadCsv}
         disabled={loading}
-        className="w-full flex items-center justify-center gap-2 bg-ledger text-white text-sm font-semibold rounded-full py-3 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-ledger py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
       >
         <Download size={16} />
         {loading ? "Menyiapkan..." : "Unduh Laporan (CSV)"}

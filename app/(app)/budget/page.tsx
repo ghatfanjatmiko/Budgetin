@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense} from "react";
 import { createClient } from "@/lib/supabase/client";
-import { rupiah, currentMonthStart } from "@/lib/format";
+import { rupiah } from "@/lib/format";
+import { monthEndExclusive, useBudgetMonth } from "@/lib/month";
+import MonthPicker from "@/components/MonthPicker";
 import type {
   Income,
   Saving,
@@ -10,9 +12,10 @@ import type {
   VariableExpense,
 } from "@/lib/types";
 
-export default function DashboardPage() {
+function DashboardPageInner() {
   const supabase = createClient();
-  const month = currentMonthStart();
+  const month = useBudgetMonth();
+  const monthEnd = monthEndExclusive(month);
 
   const [loading, setLoading] = useState(true);
   const [income, setIncome] = useState<Income[]>([]);
@@ -20,6 +23,7 @@ export default function DashboardPage() {
   const [fixed, setFixed] = useState<FixedExpense[]>([]);
   const [variable, setVariable] = useState<VariableExpense[]>([]);
   const [autoActual, setAutoActual] = useState(0);
+  const [autoActualByKind, setAutoActualByKind] = useState({ Jajan: 0, Nongkrong: 0 });
 
   async function loadAll() {
     setLoading(true);
@@ -28,7 +32,7 @@ export default function DashboardPage() {
       supabase.from("savings").select("*").eq("month", month).order("created_at"),
       supabase.from("fixed_expenses").select("*").eq("month", month).order("created_at"),
       supabase.from("variable_expenses").select("*").eq("month", month).order("created_at"),
-      supabase.from("transactions").select("qty, price").gte("date", month),
+      supabase.from("transactions").select("kind, qty, price").gte("date", month).lt("date", monthEnd),
     ]);
     setIncome(i.data ?? []);
     setSavings(s.data ?? []);
@@ -38,14 +42,23 @@ export default function DashboardPage() {
       (sum: number, r: any) => sum + Number(r.qty) * Number(r.price),
       0
     );
+    const byKind = (t.data ?? []).reduce(
+      (sum: { Jajan: number; Nongkrong: number }, r: any) => {
+        const kind = r.kind as "Jajan" | "Nongkrong";
+        if (kind === "Jajan" || kind === "Nongkrong") sum[kind] += Number(r.qty) * Number(r.price);
+        return sum;
+      },
+      { Jajan: 0, Nongkrong: 0 }
+    );
     setAutoActual(total);
+    setAutoActualByKind(byKind);
     setLoading(false);
   }
 
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [month]);
 
   async function currentUserId() {
     const {
@@ -137,16 +150,47 @@ export default function DashboardPage() {
   const incomeTotal = income.reduce((s, r) => s + Number(r.amount), 0);
   const savingsTotal = savings.reduce((s, r) => s + Number(r.amount), 0);
   const fixedTotal = fixed.reduce((s, r) => s + Number(r.amount), 0);
+  const plannedVariable = variable.reduce((s, r) => s + Number(r.plan_amount), 0);
   const totalExpense = fixedTotal + autoActual;
   const sisa = incomeTotal - savingsTotal - totalExpense;
+  const budgetTotal = fixedTotal + plannedVariable;
+  const remainingPct = budgetTotal > 0 ? Math.max(0, Math.min(100, ((budgetTotal - totalExpense) / budgetTotal) * 100)) : 100;
 
   if (loading) {
     return <p className="text-sm text-gray-400 py-10">Memuat data...</p>;
   }
 
   return (
-    <div>
-      <h1 className="text-lg font-bold text-ledger mb-4">Halaman Budgeting</h1>
+    <div className="space-y-3.5">
+      <div className="flex items-center gap-3 pb-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Budgetin' logo" className="h-11 w-11 rounded-xl" />
+        <div>
+          <h1 className="page-title">Budget</h1>
+          <MonthPicker compact />
+        </div>
+      </div>
+
+      <div className="soft-card flex items-center gap-3 px-4 py-3">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-coin/15 text-lg">💡</span>
+        <div className="flex-1"><p className="text-sm font-semibold">Atur rencana budget untuk bulan ini</p><p className="text-xs text-gray-400">Rencana membantu mengontrol pengeluaran.</p></div>
+        <span className="text-lg">›</span>
+      </div>
+
+      <div>
+        <p className="mb-2 px-1 text-sm font-bold text-ledger">Ringkasan Budget</p>
+        <div className="app-card grid grid-cols-2 gap-y-4 p-4">
+          <SummaryCard label="Pendapatan" value={rupiah(incomeTotal)} accent />
+          <SummaryCard label="Tabungan" value={rupiah(savingsTotal)} accent />
+          <SummaryCard label="Total Budget" value={rupiah(budgetTotal)} />
+          <SummaryCard label="Total Aktual" value={rupiah(totalExpense)} negative />
+        </div>
+      </div>
+
+      <div className="app-card p-4">
+        <div className="flex items-end justify-between"><div><p className="text-xs text-gray-500">Sisa Budget</p><p className="mt-1 text-2xl font-bold tracking-tight text-ledger">{rupiah(sisa)}</p></div><p className="text-sm font-semibold text-leaf">{remainingPct.toFixed(0)}% tersisa</p></div>
+        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-paper"><div className="h-full rounded-full bg-leaf" style={{ width: `${remainingPct}%` }} /></div>
+      </div>
 
       {/* Pendapatan */}
       <Section title="Pendapatan" total={rupiah(incomeTotal)} onAdd={addIncome}>
@@ -241,18 +285,14 @@ export default function DashboardPage() {
 
       {/* Pengeluaran Tidak Tetap */}
       <Section title="Pengeluaran Tidak Tetap" onAdd={addVariable}>
-        <Table head={["Kategori", "Rencana", "Aktual", ""]}>
+        <Table head={["Kategori", "Rencana", "Aktual", "Auto", ""]}>
           {variable.map((row) => (
             <tr key={row.id} className="border-b border-dashed border-line">
               <Td>
-                {row.is_auto ? (
-                  <span>{row.category}</span>
-                ) : (
-                  <TextInput
-                    value={row.category}
-                    onCommit={(v) => updateVariable(row.id, "category", v)}
-                  />
-                )}
+                <TextInput
+                  value={row.category}
+                  onCommit={(v) => updateVariable(row.id, "category", v)}
+                />
               </Td>
               <TdNum>
                 <NumberInput
@@ -262,11 +302,20 @@ export default function DashboardPage() {
               </TdNum>
               <TdNum>
                 {row.is_auto ? (
-                  <span title="Otomatis dari Tracker">{rupiah(autoActual)} 🔗</span>
+                  <span title="Otomatis dari Tracker">{rupiah(linkedActual(row.category, autoActual, autoActualByKind))} 🔗</span>
                 ) : (
                   "—"
                 )}
               </TdNum>
+              <Td>
+                <button
+                  onClick={() => updateVariable(row.id, "is_auto", !row.is_auto)}
+                  className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${row.is_auto ? "bg-leaf/10 text-leaf" : "bg-paper text-gray-400"}`}
+                  title="Hubungkan aktual kategori ini ke Tracker"
+                >
+                  {row.is_auto ? "Aktif" : "Manual"}
+                </button>
+              </Td>
               <TdAction>
                 {!row.is_auto && <DeleteButton onClick={() => removeVariable(row.id)} />}
               </TdAction>
@@ -274,14 +323,20 @@ export default function DashboardPage() {
           ))}
         </Table>
         <p className="text-[11px] text-gray-400 mt-2">
-          Tambahkan baris dengan kategori &quot;Jajan &amp; Nongkrong&quot; dan
-          set <code>is_auto = true</code> di Supabase supaya otomatis
-          terhubung ke total transaksi Tracker.
+          Pilih <b>Auto</b> untuk menghubungkan kategori ke Tracker. Nama kategori
+          &quot;Jajan&quot; atau &quot;Nongkrong&quot; akan mengambil total sesuai jenis transaksi.
         </p>
       </Section>
 
     </div>
   );
+}
+
+function linkedActual(category: string, total: number, byKind: { Jajan: number; Nongkrong: number }) {
+  const normalized = category.toLowerCase();
+  if (normalized.includes("jajan") && !normalized.includes("nongkrong")) return byKind.Jajan;
+  if (normalized.includes("nongkrong") && !normalized.includes("jajan")) return byKind.Nongkrong;
+  return total;
 }
 
 // ---------- Reusable bits ----------
@@ -298,14 +353,17 @@ function SummaryCard({
   negative?: boolean;
 }) {
   return (
-    <div className="bg-white p-4 rounded-2xl shadow-sm">
+    <div className="flex items-center gap-2">
+      <span className={`grid h-8 w-8 place-items-center rounded-full text-sm ${negative ? "bg-danger/10" : accent ? "bg-leaf/10" : "bg-paper"}`}>{negative ? "↓" : accent ? "↗" : "◫"}</span>
+      <div>
       <div className="text-xs text-gray-400 mb-1">{label}</div>
       <div
-        className={`font-bold text-xl ${
+        className={`font-bold text-base tracking-tight ${
           negative ? "text-danger" : accent ? "text-leaf" : "text-ledger"
         }`}
       >
         {value}
+      </div>
       </div>
     </div>
   );
@@ -323,15 +381,15 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 bg-white rounded-2xl shadow-sm p-4">
+    <div className="app-card mb-3.5 p-4">
       <div className="flex justify-between items-center mb-3">
-        <h2 className="text-sm font-semibold text-ledger">{title}</h2>
-        {total && <span className="text-xs text-gray-400">total: {total}</span>}
+        <h2 className="text-sm font-bold text-ledger">{title}</h2>
+        {total && <span className="text-xs font-semibold text-gray-500">{total}</span>}
       </div>
       {children}
       <button
         onClick={onAdd}
-        className="mt-3 text-xs font-medium text-ledger bg-paper rounded-full px-4 py-2 hover:bg-line"
+        className="mt-3 rounded-xl bg-paper px-3.5 py-2 text-xs font-semibold text-ledger hover:bg-line"
       >
         + Tambah
       </button>
@@ -382,7 +440,7 @@ function TextInput({
     <input
       defaultValue={value}
       onBlur={(e) => e.target.value !== value && onCommit(e.target.value)}
-      className="w-full bg-transparent text-sm focus:outline-none focus:bg-paper"
+      className="w-full rounded-lg bg-transparent px-1 py-1 text-sm focus:bg-paper focus:outline-none"
     />
   );
 }
@@ -402,7 +460,7 @@ function NumberInput({
         const n = Number(e.target.value);
         if (n !== value) onCommit(n);
       }}
-      className="w-full bg-transparent text-sm text-right focus:outline-none focus:bg-paper"
+      className="w-full rounded-lg bg-transparent px-1 py-1 text-right text-sm focus:bg-paper focus:outline-none"
     />
   );
 }
@@ -411,9 +469,17 @@ function DeleteButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="text-xs text-danger rounded-full px-2.5 py-1 hover:bg-danger hover:text-white transition"
+      className="rounded-lg px-2 py-1 text-xs text-danger transition hover:bg-danger hover:text-white"
     >
       Hapus
     </button>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-gray-400 py-10">Memuat data...</p>}>
+      <DashboardPageInner />
+    </Suspense>
   );
 }

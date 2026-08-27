@@ -63,17 +63,17 @@ export default function TagihanPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-bold text-ledger">Tagihan &amp; Hutang</h1>
+        <h1 className="page-title">Tagihan &amp; Hutang</h1>
         <Bell size={18} className="text-gray-400" />
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="mb-4 flex gap-2 rounded-xl bg-white p-1.5 shadow-sm">
         {(["Langganan", "Hutang"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-full text-sm font-medium ${
-              tab === t ? "bg-ledger text-white" : "bg-white text-gray-500 border border-line"
+              tab === t ? "bg-ledger text-white shadow-sm" : "text-gray-500"
             }`}
           >
             {t}
@@ -83,12 +83,12 @@ export default function TagihanPage() {
 
       <div className="space-y-3">
         {filtered.length === 0 && (
-          <p className="text-xs text-gray-400 text-center py-8 bg-white rounded-2xl shadow-sm">
+          <p className="app-card py-8 text-center text-xs text-gray-400">
             Belum ada {tab.toLowerCase()}.
           </p>
         )}
         {filtered.map((item) => (
-          <div key={item.id} className="bg-white rounded-2xl shadow-sm p-4">
+          <div key={item.id} className="app-card p-4">
             <div className="flex justify-between items-start mb-2">
               <input
                 defaultValue={item.name}
@@ -138,13 +138,13 @@ export default function TagihanPage() {
 
       <button
         onClick={addItem}
-        className="mt-4 w-full flex items-center justify-center gap-2 bg-white border border-line text-sm font-medium text-ledger rounded-full py-3"
+        className="app-card mt-4 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold text-ledger"
       >
         <Plus size={16} /> Tambah {tab}
       </button>
 
       {items.reduce((s, r) => s + Number(r.amount), 0) > 0 && (
-        <div className="mt-4 bg-ledger text-white rounded-2xl p-4 flex justify-between items-center">
+        <div className="mt-4 flex items-center justify-between rounded-[22px] bg-ledger p-4 text-white">
           <span className="text-sm">Total {tab.toLowerCase()}</span>
           <span className="font-bold">{rupiah(filtered.reduce((s, r) => s + Number(r.amount), 0))}</span>
         </div>

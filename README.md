@@ -4,23 +4,55 @@ Versi lengkap sesuai desain mockup: 5 halaman (Home, Budget, Tracker, Tagihan,
 Profil) + Insights + Scan Struk dengan AI beneran (bukan simulasi).
 
 **Yang sudah ada dan fungsional:**
-- Login tanpa password (magic link email)
-- **Home** — saldo bulan ini, Budget Health bar, ringkasan 3 kolom, mini chart, transaksi terakhir
+- Login pakai kode OTP 6 digit (bukan link) — tanpa keluar aplikasi
+- **Home** — saldo bulan ini, Budget Health bar, Streak &amp; Badge nyatet, ringkasan 3 kolom, mini chart, transaksi terakhir
 - **Budget** — form Pendapatan, Nabung, Pengeluaran Tetap/Tidak Tetap
-- **Tracker** — daftar transaksi dikelompokkan per hari, filter Jajan/Nongkrong, tombol tambah (+)
+- **Tracker** — daftar transaksi dikelompokkan per hari, filter Jajan/Nongkrong, tombol tambah (+), **Split Nongkrong** (bagi tagihan + salin pesan WA)
 - **Tagihan** — Langganan & Hutang, terpisah tab
-- **Insights** — prediksi akhir bulan (dihitung nyata dari data transaksi, bukan dummy), kategori pengeluaran tertinggi, performa vs bulan lalu
+- **Insights** — prediksi akhir bulan (dihitung nyata dari transaksi), kategori pengeluaran tertinggi, performa vs bulan lalu, **Benchmark Komunitas Kampus** (agregat anonim, minimal 3 pengguna per kampus)
 - **Scan Struk dengan AI** — foto struk beneran dikirim ke Claude (Anthropic) buat dibaca otomatis
-- **Profil** — info akun, banner upgrade Budgetin' Plus (belum ada pembayaran beneran), unduh laporan
+- **Profil** — info akun, input kampus (buat Benchmark), banner upgrade Budgetin' Plus (belum ada pembayaran beneran), unduh laporan
 - **Unduh Laporan** — export CSV asli dari data transaksi
 - Sidebar di desktop, bottom nav di mobile — responsive
-- Row Level Security aktif di semua tabel
+- Month Picker — bisa lihat histori bulan-bulan sebelumnya
+- Row Level Security aktif di semua tabel; benchmark kampus cuma mengembalikan agregat, tidak pernah data mentah antar pengguna
 
 **Yang masih placeholder (belum fungsional):**
 - Tombol "Upgrade Sekarang" di Profil (belum ada sistem pembayaran)
 - Menu Keamanan/Preferensi/Kelola Data di Profil (baru navigasi kosong)
-- Split Nongkrong, Streak, Benchmark Kampus — logikanya ada di `prototype-budgetin.html`, belum di-porting ke sini
+- **Catat via WhatsApp/Telegram bot** — BUKAN sekadar nambah kode di app ini,
+  butuh proyek terpisah: daftar WhatsApp Business API / Twilio, server
+  webhook buat nerima pesan masuk, dan parsing teks jadi transaksi. Kalau mau
+  dikerjain, lebih baik dibahas sebagai fase terpisah.
 - Format laporan Excel/PDF (baru CSV)
+
+---
+
+## 0. Kalau kamu baru upgrade dari versi sebelumnya
+
+Ada 2 perubahan skema database yang WAJIB dijalankan di SQL Editor Supabase
+kalau sebelumnya sudah pernah setup:
+
+```sql
+-- 1. Kolom type untuk Tagihan (kalau belum pernah dijalankan)
+alter table subscriptions_debts add column if not exists type text not null default 'Langganan';
+
+-- 2. Tabel profiles + fungsi benchmark kampus (fitur baru)
+create table if not exists profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  campus text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table profiles enable row level security;
+create policy "individual access" on profiles
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```
+
+Untuk fungsi `get_campus_benchmark`, paling gampang copy-paste ulang seluruh
+isi `supabase/schema.sql` ke SQL Editor dan jalankan — semua perintahnya pakai
+`if not exists` / `create or replace` jadi aman dijalankan berkali-kali tanpa
+merusak data yang sudah ada.
 
 ---
 

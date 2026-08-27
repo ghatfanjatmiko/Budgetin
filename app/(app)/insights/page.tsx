@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense} from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { rupiah, currentMonthStart } from "@/lib/format";
+import { rupiah } from "@/lib/format";
+import { monthEndExclusive, previousMonthStart, useBudgetMonth } from "@/lib/month";
+import MonthPicker from "@/components/MonthPicker";
 import {
   ResponsiveContainer,
   LineChart,
@@ -14,33 +17,54 @@ import {
 
 type Tx = { date: string; kind: "Jajan" | "Nongkrong"; name: string; qty: number; price: number };
 
-export default function InsightsPage() {
+function InsightsPageInner() {
   const supabase = createClient();
-  const month = currentMonthStart();
+  const month = useBudgetMonth();
+  const monthEnd = monthEndExclusive(month);
 
   const [loading, setLoading] = useState(true);
   const [tx, setTx] = useState<Tx[]>([]);
   const [lastMonthActual, setLastMonthActual] = useState(0);
+  const [campus, setCampus] = useState<string | null>(null);
+  const [benchmark, setBenchmark] = useState<{ user_count: number; avg_total: number } | null>(null);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [month]);
 
   async function load() {
     setLoading(true);
-    const now = new Date();
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthStart = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, "0")}-01`;
+    const lastMonthStart = previousMonthStart(month);
 
     const [t, tLast] = await Promise.all([
-      supabase.from("transactions").select("date, kind, name, qty, price").gte("date", month).order("date"),
+      supabase.from("transactions").select("date, kind, name, qty, price").gte("date", month).lt("date", monthEnd).order("date"),
       supabase.from("transactions").select("qty, price").gte("date", lastMonthStart).lt("date", month),
     ]);
     setTx((t.data ?? []) as Tx[]);
     setLastMonthActual(
       (tLast.data ?? []).reduce((s: number, r: any) => s + Number(r.qty) * Number(r.price), 0)
     );
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("campus")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setCampus(profile?.campus ?? null);
+
+      if (profile?.campus) {
+        const { data: bench } = await supabase.rpc("get_campus_benchmark", { target_month: month });
+        setBenchmark(bench && bench.length > 0 ? bench[0] : null);
+      } else {
+        setBenchmark(null);
+      }
+    }
+
     setLoading(false);
   }
 
@@ -48,15 +72,17 @@ export default function InsightsPage() {
 
   // ---------- Prediksi akhir bulan (dihitung nyata dari data transaksi) ----------
   const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const [selectedYear, selectedMonth] = month.split("-").map(Number);
+  const isCurrentMonth = month === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
   const byDate: Record<string, number> = {};
   tx.forEach((t) => {
     byDate[t.date] = (byDate[t.date] || 0) + Number(t.qty) * Number(t.price);
   });
-  const elapsedDays = Math.max(Object.keys(byDate).length, 1);
+  const elapsedDays = isCurrentMonth ? now.getDate() : daysInMonth;
   const actualSoFar = tx.reduce((s, t) => s + Number(t.qty) * Number(t.price), 0);
   const avgDaily = actualSoFar / elapsedDays;
-  const remainingDays = Math.max(daysInMonth - elapsedDays, 0);
+  const remainingDays = isCurrentMonth ? Math.max(daysInMonth - elapsedDays, 0) : 0;
   const projectedTotal = actualSoFar + avgDaily * remainingDays;
 
   // cumulative running series for the chart, then project forward with a dashed continuation
@@ -79,8 +105,6 @@ export default function InsightsPage() {
   }
   const chartData = [...historyPoints, ...projectionPoints];
 
-  const projectedDate = new Date(now.getFullYear(), now.getMonth(), Math.min(daysInMonth, elapsedDays + remainingDays));
-
   // ---------- Kategori pengeluaran tertinggi ----------
   const byKind: Record<string, number> = {};
   tx.forEach((t) => {
@@ -98,13 +122,11 @@ export default function InsightsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold text-ledger mb-1">Insights</h1>
-      <p className="text-xs text-gray-400 capitalize mb-2">
-        {now.toLocaleDateString("id-ID", { month: "long", year: "numeric" })}
-      </p>
+      <h1 className="page-title mb-1">Insights</h1>
+      <MonthPicker />
 
       {/* Prediksi */}
-      <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="app-card p-5">
         <p className="text-sm text-gray-500 mb-1">Prediksi Akhir Bulan</p>
         <p className="text-xs text-gray-400 mb-3">
           Dengan pola pengeluaran saat ini, uangmu diperkirakan habis pada
@@ -116,7 +138,7 @@ export default function InsightsPage() {
         ) : (
           <>
             <p className="text-2xl font-bold text-ledger mb-3">
-              {projectedTotal > 0 ? rupiah(projectedTotal) : "-"} pada akhir bulan
+              {projectedTotal > 0 ? rupiah(projectedTotal) : "-"} {isCurrentMonth ? "pada akhir bulan" : "pada bulan tersebut"}
             </p>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -145,7 +167,7 @@ export default function InsightsPage() {
       </div>
 
       {/* Pengeluaran tertinggi */}
-      <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="app-card p-5">
         <p className="font-semibold text-sm text-ledger mb-3">Pengeluaran Tertinggi</p>
         <p className="text-xs text-gray-400 mb-3">Kategori dengan pengeluaran terbesar</p>
         {topCategories.length === 0 ? (
@@ -168,7 +190,7 @@ export default function InsightsPage() {
       </div>
 
       {/* Performa budget */}
-      <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="app-card p-5">
         <p className="font-semibold text-sm text-ledger mb-1">Performa Budget</p>
         {pct === null ? (
           <p className="text-xs text-gray-400">
@@ -188,6 +210,75 @@ export default function InsightsPage() {
           </>
         )}
       </div>
+      {/* Benchmark Komunitas Kampus */}
+      <div className="app-card p-5">
+        <p className="font-semibold text-sm text-ledger mb-1">Benchmark Komunitas Kampus</p>
+        <p className="text-xs text-gray-400 mb-3">
+          Bandingkan pengeluaran jajan &amp; nongkrong bulan ini dengan rata-rata mahasiswa lain di kampusmu (anonim &amp; agregat).
+        </p>
+        {!campus ? (
+          <div className="rounded-xl bg-[#f7f6f0] px-3 py-3 text-xs text-gray-500">
+            Isi nama kampusmu dulu di{" "}
+            <Link href="/profile" className="text-ledger font-medium underline">
+              halaman Profil
+            </Link>{" "}
+            supaya fitur ini bisa jalan.
+          </div>
+        ) : !benchmark ? (
+          <div className="rounded-xl bg-[#f7f6f0] px-3 py-3 text-xs text-gray-500">
+            Belum cukup pengguna lain dari <b>{campus}</b> yang tercatat bulan
+            ini (minimal 3 orang) untuk perbandingan anonim.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <BenchmarkBar
+              label="Kamu"
+              value={tx.reduce((s, t) => s + Number(t.qty) * Number(t.price), 0)}
+              max={Math.max(
+                tx.reduce((s, t) => s + Number(t.qty) * Number(t.price), 0),
+                benchmark.avg_total,
+                1
+              )}
+              color="bg-leaf"
+            />
+            <BenchmarkBar
+              label={`Rata-rata ${campus}`}
+              value={benchmark.avg_total}
+              max={Math.max(
+                tx.reduce((s, t) => s + Number(t.qty) * Number(t.price), 0),
+                benchmark.avg_total,
+                1
+              )}
+              color="bg-coin"
+            />
+            <p className="text-[11px] text-gray-400">
+              Dihitung dari {benchmark.user_count} pengguna anonim di kampus yang sama.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+function BenchmarkBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-gray-500">{label}</span>
+        <span className="font-medium text-ink">{rupiah(value)}</span>
+      </div>
+      <div className="h-2 bg-line rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${(value / max) * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export default function InsightsPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-gray-400 py-10">Memuat data...</p>}>
+      <InsightsPageInner />
+    </Suspense>
   );
 }

@@ -34,6 +34,11 @@ export type Transaction = {
   price: number;
 };
 
+export type Profile = {
+  user_id: string;
+  campus: string | null;
+};
+
 export type SubscriptionDebt = {
   id: string;
   type: "Langganan" | "Hutang";

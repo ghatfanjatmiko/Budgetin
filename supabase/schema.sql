@@ -73,6 +73,14 @@ create table if not exists subscriptions_debts (
   created_at timestamptz not null default now()
 );
 
+-- Profil pengguna, dipakai untuk fitur Benchmark Komunitas Kampus.
+create table if not exists profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  campus text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- ---------- Row Level Security ----------
 -- Wajib dinyalakan supaya data satu pengguna tidak bisa dilihat/diubah pengguna lain.
 
@@ -82,6 +90,7 @@ alter table fixed_expenses enable row level security;
 alter table variable_expenses enable row level security;
 alter table transactions enable row level security;
 alter table subscriptions_debts enable row level security;
+alter table profiles enable row level security;
 
 create policy "individual access" on income
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -100,6 +109,53 @@ create policy "individual access" on transactions
 
 create policy "individual access" on subscriptions_debts
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "individual access" on profiles
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ---------- Benchmark Komunitas Kampus ----------
+-- Hanya mengembalikan AGREGAT (jumlah pengguna + rata-rata), tidak pernah
+-- data mentah per orang. Kalau pengguna dari kampus yang sama masih < 3
+-- orang, sengaja tidak mengembalikan apa-apa supaya privasi tetap terjaga
+-- (kalau cuma 1-2 orang, "rata-rata" itu sama aja bocorin angka orang lain).
+create or replace function get_campus_benchmark(target_month date)
+returns table (user_count bigint, avg_total numeric)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  my_campus text;
+  cnt bigint;
+  avg_val numeric;
+begin
+  select p.campus into my_campus from profiles p where p.user_id = auth.uid();
+
+  if my_campus is null or my_campus = '' then
+    return;
+  end if;
+
+  select count(*), coalesce(avg(total), 0)
+  into cnt, avg_val
+  from (
+    select tx.user_id, sum(tx.qty * tx.price) as total
+    from transactions tx
+    join profiles pr on pr.user_id = tx.user_id
+    where pr.campus = my_campus
+      and tx.date >= target_month
+      and tx.date < (target_month + interval '1 month')::date
+    group by tx.user_id
+  ) sub;
+
+  if cnt < 3 then
+    return;
+  end if;
+
+  return query select cnt, avg_val;
+end;
+$$;
+
+grant execute on function get_campus_benchmark(date) to authenticated;
 
 -- ---------- Index bantu query bulan berjalan ----------
 create index if not exists idx_income_month on income (user_id, month);
