@@ -4,7 +4,7 @@ Versi lengkap sesuai desain mockup: 5 halaman (Home, Budget, Tracker, Tagihan,
 Profil) + Insights + Scan Struk dengan AI beneran (bukan simulasi).
 
 **Yang sudah ada dan fungsional:**
-- Login pakai email + password biasa (tanpa verifikasi email — lihat setup wajib di bawah) — siapapun bisa daftar sendiri
+- Login pakai email + password, pendaftaran terbuka (siapapun bisa daftar sendiri) — pakai Gmail sendiri sebagai SMTP, lihat setup wajib di bawah. Ada juga "Lupa password?"
 - **Home** — saldo bulan ini, Budget Health bar, Streak &amp; Badge nyatet, ringkasan 3 kolom, mini chart, transaksi terakhir
 - **Budget** — form Pendapatan, Nabung, Pengeluaran Tetap/Tidak Tetap
 - **Tracker** — daftar transaksi dikelompokkan per hari, filter Jajan/Nongkrong, tombol tambah (+), **Split Nongkrong** (bagi tagihan + salin pesan WA)
@@ -70,29 +70,50 @@ Sama seperti sebelumnya — jalankan `supabase/schema.sql` di SQL Editor.
 Ambil **Project URL** dan **Publishable/anon key** dari Project Settings > API
 seperti biasa.
 
-### ⚠️ WAJIB: Matikan "Confirm email" supaya login bisa dipakai siapapun
+### ⚠️ WAJIB: Setup Gmail sebagai SMTP (supaya siapapun bisa daftar sendiri)
 
-Login sekarang pakai **email + password biasa** (bukan kode/link email lagi)
-— supaya siapapun bisa langsung daftar & masuk tanpa kamu perlu setup SMTP,
-domain, atau invite manual satu-satu ke Supabase Team.
+Login/daftar sekarang **email + password terbuka** — siapapun bisa daftar
+sendiri lewat aplikasi, dapat email konfirmasi & bisa reset password kalau
+lupa. Supaya email-nya beneran nyampe ke sembarang alamat (bukan cuma
+akunmu sendiri), pakai **Gmail kamu sendiri sebagai SMTP** — gratis, tanpa
+perlu domain.
 
-1. Di Supabase Dashboard, buka **Authentication** → **Sign In / Providers**.
-2. Klik provider **Email**.
-3. Matikan toggle **"Confirm email"**.
-4. Save.
+**A. Generate App Password dari akun Gmail kamu**
 
-**Kenapa ini penting:** kalau toggle ini masih nyala, Supabase akan tetap
-coba kirim email konfirmasi setiap ada yang daftar — dan balik lagi kena
-masalah "cuma bisa 1 email" yang sudah kita bahas sebelumnya. Dengan toggle
-ini dimatikan, akun langsung aktif begitu daftar, tidak ada email yang perlu
-dikirim sama sekali.
+1. Buka [myaccount.google.com/security](https://myaccount.google.com/security)
+2. Pastikan **2-Step Verification** aktif (nyalain dulu kalau belum)
+3. Cari **App Passwords**, buat baru dengan nama bebas (misal "Budgetin SMTP")
+4. Copy kode 16 karakter yang muncul — cuma keliatan sekali, simpan dulu
 
-**Trade-off yang perlu kamu tahu:** karena tidak ada verifikasi, orang bisa
-mendaftar pakai alamat email apapun (termasuk yang bukan miliknya) tanpa
-dicek kepemilikannya. Untuk demo/tugas kuliah dengan pengguna terbatas, ini
-risikonya kecil dan wajar dipakai di tahap awal. Kalau nanti aplikasi ini
-mau dirilis ke publik sungguhan, baru worth-it mikirin verifikasi email lagi
-(yang berarti perlu setup domain + SMTP provider seperti Resend).
+**B. Masukkan ke Supabase**
+
+1. **Authentication** → **Emails** → **SMTP Settings**
+2. Nyalain **"Enable custom SMTP"**, isi:
+   ```
+   Sender email : emailgmailkamu@gmail.com
+   Sender name  : Budgetin'
+   Host         : smtp.gmail.com
+   Port         : 587
+   Username     : emailgmailkamu@gmail.com
+   Password     : [App Password 16 karakter, tanpa spasi]
+   ```
+3. Save.
+
+**C. Atur Redirect URL**
+
+**Authentication** → **URL Configuration** → tambahkan di **Redirect URLs**:
+- `http://localhost:3000/set-password`
+- `https://domain-vercel-kamu.vercel.app/set-password` (setelah deploy)
+
+Setelah ini, siapapun bisa klik "Daftar" di aplikasi, isi email + password,
+dapat email konfirmasi beneran, dan kalau lupa password bisa reset sendiri
+lewat "Lupa password?".
+
+> **Batasan yang perlu kamu tahu:** akun Gmail personal cuma bisa kirim ke
+> maksimal ~500 penerima per 24 jam — jauh lebih dari cukup untuk tugas
+> kuliah/demo, tapi kalau nanti aplikasi ini beneran dipakai ratusan orang
+> per hari, baru perlu pindah ke provider seperti Resend dengan domain
+> terverifikasi.
 
 ## 2. Setup Scan Struk AI
 
