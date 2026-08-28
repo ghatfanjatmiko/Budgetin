@@ -31,7 +31,7 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${location.origin}/set-password` },
+        options: { emailRedirectTo: `${location.origin}/auth/callback?next=/set-password` },
       });
       setLoading(false);
       if (error) {
@@ -70,7 +70,7 @@ export default function LoginPage() {
     setForgotLoading(true);
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${location.origin}/set-password`,
+      redirectTo: `${location.origin}/auth/callback?next=/set-password`,
     });
     setForgotLoading(false);
     if (error) {
