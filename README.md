@@ -10,7 +10,7 @@ Profil) + Insights + Scan Struk dengan AI beneran (bukan simulasi).
 - **Tracker** — daftar transaksi dikelompokkan per hari, filter Jajan/Nongkrong, tombol tambah (+), **Split Nongkrong** (bagi tagihan + salin pesan WA)
 - **Tagihan** — Langganan & Hutang, terpisah tab
 - **Insights** — prediksi akhir bulan (dihitung nyata dari transaksi), kategori pengeluaran tertinggi, performa vs bulan lalu, **Benchmark Komunitas Kampus** (agregat anonim, minimal 3 pengguna per kampus)
-- **Scan Struk dengan AI** — foto struk beneran dikirim ke Claude (Anthropic) buat dibaca otomatis
+- **Scan Struk dengan AI** — foto struk beneran dikirim ke Google Gemini buat dibaca otomatis
 - **Profil** — info akun, input kampus (buat Benchmark), banner upgrade Budgetin' Plus (belum ada pembayaran beneran), unduh laporan
 - **Unduh Laporan** — export CSV asli dari data transaksi
 - Sidebar di desktop, bottom nav di mobile — responsive
@@ -115,19 +115,19 @@ lewat "Lupa password?".
 > per hari, baru perlu pindah ke provider seperti Resend dengan domain
 > terverifikasi.
 
-## 2. Setup Scan Struk AI
+## 2. Setup Scan Struk AI (pakai Google Gemini — gratis)
 
-1. Buka [console.anthropic.com](https://console.anthropic.com), buat akun (ada
-   starting credit gratis).
-2. Bikin API key baru, copy nilainya (diawali `sk-ant-...`).
-3. Masukkan ke `.env.local` sebagai `ANTHROPIC_API_KEY` (**tanpa** `NEXT_PUBLIC_`
+1. Buka [aistudio.google.com/apikey](https://aistudio.google.com/apikey),
+   login pakai akun Google kamu.
+2. Klik **Create API Key**, copy nilainya.
+3. Masukkan ke `.env.local` sebagai `GEMINI_API_KEY` (**tanpa** `NEXT_PUBLIC_`
    di depan — variable ini harus tetap rahasia di server).
 4. Tanpa key ini, semua fitur lain tetap jalan normal — cuma halaman Scan
    Struk yang akan menampilkan pesan error kalau dicoba.
 
-> Setiap kali fitur Scan Struk dipakai, itu memanggil API Anthropic dan akan
-> memakai sedikit credit/biaya sesuai harga API mereka. Untuk testing/demo,
-> starting credit gratis biasanya lebih dari cukup.
+> Model yang dipakai (`gemini-3.5-flash-lite`) punya free tier lumayan besar
+> (ribuan request per hari) — untuk testing/demo/tugas kuliah, kemungkinan
+> besar kamu nggak akan pernah kena limit sama sekali.
 
 ## 3. Jalankan di komputer
 
@@ -135,7 +135,7 @@ lewat "Lupa password?".
 cd budgetin
 npm install
 cp .env.local.example .env.local
-# isi .env.local dengan 3 nilai: Supabase URL, Supabase key, Anthropic key
+# isi .env.local dengan 3 nilai: Supabase URL, Supabase key, Gemini key
 npm run dev
 ```
 
@@ -162,7 +162,7 @@ Remove-Item -Recurse -Force node_modules, package-lock.json
 ## 4. Deploy ke Vercel
 
 Sama seperti sebelumnya, tapi tambahkan environment variable ketiga di Vercel:
-`ANTHROPIC_API_KEY` (selain `NEXT_PUBLIC_SUPABASE_URL` dan
+`GEMINI_API_KEY` (selain `NEXT_PUBLIC_SUPABASE_URL` dan
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
 
 ## 5. Struktur folder (ringkas)
@@ -177,7 +177,7 @@ app/
 │   ├── insights/        # prediksi & analisis
 │   └── profile/         # profil + laporan
 ├── scan/                 # halaman scan struk (full-screen, tanpa nav)
-├── api/scan-receipt/     # server route yang manggil Anthropic API
+├── api/scan-receipt/     # server route yang manggil Gemini API
 ├── login/
 └── auth/callback/
 components/
