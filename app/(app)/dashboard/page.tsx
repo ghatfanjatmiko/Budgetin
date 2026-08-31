@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingState from "@/components/LoadingState";
 import { useEffect, useState, Suspense} from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -131,7 +132,7 @@ function HomePageInner() {
   const pctVsLastMonth =
     lastMonthActual > 0 ? (((lastMonthActual - actualTotal) / lastMonthActual) * 100).toFixed(1) : null;
 
-  if (loading) return <p className="text-sm text-gray-400 py-10">Memuat data...</p>;
+  if (loading) return <LoadingState />;
 
   return (
     <div className="space-y-3.5">
@@ -311,7 +312,7 @@ function StatCard({
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<p className="text-sm text-gray-400 py-10">Memuat data...</p>}>
+    <Suspense fallback={<LoadingState />}>
       <HomePageInner />
     </Suspense>
   );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
+import { useToast } from "@/components/Toast";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 type Item = { name: string; qty: number; price: number };
@@ -13,6 +14,7 @@ type ScanResult = { merchant: string; kind: "Jajan" | "Nongkrong"; items: Item[]
 export default function ScanPage() {
   const supabase = createClient();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "scanning" | "done" | "error">("idle");
@@ -87,6 +89,7 @@ export default function ScanPage() {
       price: total,
     });
     setSaving(false);
+    showToast("Transaksi dari struk tersimpan.", "success");
     router.push("/tracker");
   }
 

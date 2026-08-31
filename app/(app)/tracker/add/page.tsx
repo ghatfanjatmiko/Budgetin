@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/Toast";
 import { ArrowLeft, Camera } from "lucide-react";
 
 export default function AddTransactionPage() {
   const supabase = createClient();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [mode, setMode] = useState<"Manual" | "Foto Struk">("Manual");
   const [kind, setKind] = useState<"Jajan" | "Nongkrong">("Jajan");
@@ -19,8 +21,16 @@ export default function AddTransactionPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !price || Number(price) <= 0) {
-      alert("Isi nama item dan harga satuan ya.");
+    if (!name.trim()) {
+      showToast("Nama item / tempat wajib diisi.", "error");
+      return;
+    }
+    if (!price || Number(price) <= 0) {
+      showToast("Harga satuan harus lebih dari 0.", "error");
+      return;
+    }
+    if (qty <= 0) {
+      showToast("Qty harus lebih dari 0.", "error");
       return;
     }
     setSaving(true);
@@ -36,6 +46,7 @@ export default function AddTransactionPage() {
       price,
     });
     setSaving(false);
+    showToast("Transaksi tersimpan.", "success");
     router.push("/tracker");
   }
 
@@ -96,6 +107,7 @@ export default function AddTransactionPage() {
               <input
                 type="number"
                 min={1}
+                required
                 value={qty}
                 onChange={(e) => setQty(Number(e.target.value))}
                 className="field-control"
@@ -108,6 +120,7 @@ export default function AddTransactionPage() {
                 value={price}
                 onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
                 placeholder="0"
+                min={1}
                 className="field-control"
               />
             </div>

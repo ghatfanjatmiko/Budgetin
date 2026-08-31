@@ -3,15 +3,21 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah, currentMonthStart } from "@/lib/format";
+import { useToast } from "@/components/Toast";
 import { FileText, Download } from "lucide-react";
 
 export default function LaporanPage() {
   const supabase = createClient();
+  const { showToast } = useToast();
   const [from, setFrom] = useState(currentMonthStart());
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
 
   async function downloadCsv() {
+    if (from > to) {
+      showToast("Tanggal 'Dari' tidak boleh lebih besar dari 'Sampai'.", "error");
+      return;
+    }
     setLoading(true);
     const { data, error } = await supabase
       .from("transactions")
@@ -23,11 +29,11 @@ export default function LaporanPage() {
     setLoading(false);
 
     if (error) {
-      alert("Gagal mengambil data: " + error.message);
+      showToast("Gagal mengambil data: " + error.message, "error");
       return;
     }
     if (!data || data.length === 0) {
-      alert("Tidak ada transaksi di rentang tanggal ini.");
+      showToast("Tidak ada transaksi di rentang tanggal ini.", "error");
       return;
     }
 
@@ -54,6 +60,7 @@ export default function LaporanPage() {
     a.download = `laporan-budgetin-${from}_${to}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast("Laporan berhasil diunduh.", "success");
   }
 
   return (

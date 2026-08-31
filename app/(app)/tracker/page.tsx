@@ -4,6 +4,8 @@ import { useEffect, useState, Suspense} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
 import { monthEndExclusive, useBudgetMonth } from "@/lib/month";
+import { useToast } from "@/components/Toast";
+import LoadingState from "@/components/LoadingState";
 import MonthPicker from "@/components/MonthPicker";
 import type { Transaction } from "@/lib/types";
 import { ChevronRight, Search, SlidersHorizontal, Users, Copy, Check, X } from "lucide-react";
@@ -23,6 +25,7 @@ function groupLabel(dateStr: string): string {
 
 function TrackerPageInner() {
   const supabase = createClient();
+  const { showToast } = useToast();
   const month = useBudgetMonth();
   const monthEnd = monthEndExclusive(month);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -51,11 +54,13 @@ function TrackerPageInner() {
   }, [month]);
 
   async function removeTransaction(id: string) {
+    if (!confirm("Hapus transaksi ini?")) return;
     await supabase.from("transactions").delete().eq("id", id);
+    showToast("Transaksi dihapus.", "success");
     load();
   }
 
-  if (loading) return <p className="text-sm text-gray-400 py-10">Memuat data...</p>;
+  if (loading) return <LoadingState />;
 
   const filtered = transactions.filter((t) => {
     const matchesKind = filter === "Semua" || t.kind === filter;
@@ -191,7 +196,7 @@ function SplitSheet({ transaction, onClose }: { transaction: Transaction; onClos
 
 export default function TrackerPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-gray-400 py-10">Memuat data...</p>}>
+    <Suspense fallback={<LoadingState />}>
       <TrackerPageInner />
     </Suspense>
   );

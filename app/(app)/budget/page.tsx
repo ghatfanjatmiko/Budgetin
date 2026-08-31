@@ -3,7 +3,9 @@
 import { useEffect, useState, Suspense} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
-import { monthEndExclusive, useBudgetMonth } from "@/lib/month";
+import { useToast } from "@/components/Toast";
+import LoadingState from "@/components/LoadingState";
+import { monthEndExclusive, previousMonthStart, useBudgetMonth } from "@/lib/month";
 import MonthPicker from "@/components/MonthPicker";
 import type {
   Income,
@@ -14,6 +16,7 @@ import type {
 
 function DashboardPageInner() {
   const supabase = createClient();
+  const { showToast } = useToast();
   const month = useBudgetMonth();
   const monthEnd = monthEndExclusive(month);
 
@@ -24,6 +27,7 @@ function DashboardPageInner() {
   const [variable, setVariable] = useState<VariableExpense[]>([]);
   const [autoActual, setAutoActual] = useState(0);
   const [autoActualByKind, setAutoActualByKind] = useState({ Jajan: 0, Nongkrong: 0 });
+  const [copying, setCopying] = useState(false);
 
   async function loadAll() {
     setLoading(true);
@@ -83,7 +87,9 @@ function DashboardPageInner() {
     loadAll();
   }
   async function removeIncome(id: string) {
+    if (!confirm("Hapus baris pendapatan ini?")) return;
     await supabase.from("income").delete().eq("id", id);
+    showToast("Pendapatan dihapus.", "success");
     loadAll();
   }
 
@@ -103,7 +109,9 @@ function DashboardPageInner() {
     loadAll();
   }
   async function removeSaving(id: string) {
+    if (!confirm("Hapus baris tabungan ini?")) return;
     await supabase.from("savings").delete().eq("id", id);
+    showToast("Tabungan dihapus.", "success");
     loadAll();
   }
 
@@ -122,7 +130,9 @@ function DashboardPageInner() {
     loadAll();
   }
   async function removeFixed(id: string) {
+    if (!confirm("Hapus baris pengeluaran tetap ini?")) return;
     await supabase.from("fixed_expenses").delete().eq("id", id);
+    showToast("Pengeluaran tetap dihapus.", "success");
     loadAll();
   }
 
@@ -142,10 +152,55 @@ function DashboardPageInner() {
     loadAll();
   }
   async function removeVariable(id: string) {
+    if (!confirm("Hapus kategori ini?")) return;
     await supabase.from("variable_expenses").delete().eq("id", id);
+    showToast("Kategori dihapus.", "success");
     loadAll();
   }
 
+
+  async function copyFromPreviousMonth() {
+    const hasExisting = income.length > 0 || savings.length > 0 || fixed.length > 0 || variable.length > 0;
+    if (hasExisting) {
+      const ok = confirm(
+        "Bulan ini sudah ada data. Menyalin dari bulan lalu akan MENAMBAHKAN (bukan menimpa) data yang sudah ada. Lanjutkan?"
+      );
+      if (!ok) return;
+    }
+
+    setCopying(true);
+    const prevMonth = previousMonthStart(month);
+    const uid = await currentUserId();
+
+    const [pi, ps, pf, pv] = await Promise.all([
+      supabase.from("income").select("source, type, amount").eq("month", prevMonth),
+      supabase.from("savings").select("description, priority, amount").eq("month", prevMonth),
+      supabase.from("fixed_expenses").select("category, amount").eq("month", prevMonth),
+      supabase.from("variable_expenses").select("category, plan_amount, is_auto").eq("month", prevMonth),
+    ]);
+
+    const incomeRows = (pi.data ?? []).map((r: any) => ({ ...r, user_id: uid, month }));
+    const savingsRows = (ps.data ?? []).map((r: any) => ({ ...r, user_id: uid, month }));
+    const fixedRows = (pf.data ?? []).map((r: any) => ({ ...r, user_id: uid, month }));
+    const variableRows = (pv.data ?? []).map((r: any) => ({ ...r, user_id: uid, month }));
+
+    if (!incomeRows.length && !savingsRows.length && !fixedRows.length && !variableRows.length) {
+      setCopying(false);
+      showToast("Tidak ada data di bulan sebelumnya untuk disalin.", "error");
+      return;
+    }
+
+    await Promise.all([
+      incomeRows.length ? supabase.from("income").insert(incomeRows) : null,
+      savingsRows.length ? supabase.from("savings").insert(savingsRows) : null,
+      fixedRows.length ? supabase.from("fixed_expenses").insert(fixedRows) : null,
+      variableRows.length ? supabase.from("variable_expenses").insert(variableRows) : null,
+    ]);
+
+    setCopying(false);
+    showToast("Data bulan lalu berhasil disalin.", "success");
+    loadAll();
+  }
 
   const incomeTotal = income.reduce((s, r) => s + Number(r.amount), 0);
   const savingsTotal = savings.reduce((s, r) => s + Number(r.amount), 0);
@@ -157,7 +212,7 @@ function DashboardPageInner() {
   const remainingPct = budgetTotal > 0 ? Math.max(0, Math.min(100, ((budgetTotal - totalExpense) / budgetTotal) * 100)) : 100;
 
   if (loading) {
-    return <p className="text-sm text-gray-400 py-10">Memuat data...</p>;
+    return <LoadingState />;
   }
 
   return (
@@ -170,6 +225,14 @@ function DashboardPageInner() {
           <MonthPicker compact />
         </div>
       </div>
+
+      <button
+        onClick={copyFromPreviousMonth}
+        disabled={copying}
+        className="app-card flex w-full items-center justify-center gap-2 py-2.5 text-sm font-semibold text-ledger disabled:opacity-50"
+      >
+        {copying ? "Menyalin..." : "📋 Salin Pendapatan & Pengeluaran dari Bulan Lalu"}
+      </button>
 
       <div className="soft-card flex items-center gap-3 px-4 py-3">
         <span className="grid h-9 w-9 place-items-center rounded-full bg-coin/15 text-lg">💡</span>
@@ -439,7 +502,14 @@ function TextInput({
   return (
     <input
       defaultValue={value}
-      onBlur={(e) => e.target.value !== value && onCommit(e.target.value)}
+      onBlur={(e) => {
+        const trimmed = e.target.value.trim();
+        if (!trimmed) {
+          e.target.value = value; // jangan biarin kosong, balikin ke nilai lama
+          return;
+        }
+        if (trimmed !== value) onCommit(trimmed);
+      }}
       className="w-full rounded-lg bg-transparent px-1 py-1 text-sm focus:bg-paper focus:outline-none"
     />
   );
@@ -455,9 +525,11 @@ function NumberInput({
   return (
     <input
       type="number"
+      min={0}
       defaultValue={value}
       onBlur={(e) => {
-        const n = Number(e.target.value);
+        const n = Math.max(0, Number(e.target.value) || 0);
+        e.target.value = String(n);
         if (n !== value) onCommit(n);
       }}
       className="w-full rounded-lg bg-transparent px-1 py-1 text-right text-sm focus:bg-paper focus:outline-none"
@@ -478,7 +550,7 @@ function DeleteButton({ onClick }: { onClick: () => void }) {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-gray-400 py-10">Memuat data...</p>}>
+    <Suspense fallback={<LoadingState />}>
       <DashboardPageInner />
     </Suspense>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingState from "@/components/LoadingState";
 import { useEffect, useState, Suspense} from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -68,7 +69,7 @@ function InsightsPageInner() {
     setLoading(false);
   }
 
-  if (loading) return <p className="text-sm text-gray-400 py-10">Memuat data...</p>;
+  if (loading) return <LoadingState />;
 
   // ---------- Prediksi akhir bulan (dihitung nyata dari data transaksi) ----------
   const now = new Date();
@@ -277,7 +278,7 @@ function BenchmarkBar({ label, value, max, color }: { label: string; value: numb
 
 export default function InsightsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-gray-400 py-10">Memuat data...</p>}>
+    <Suspense fallback={<LoadingState />}>
       <InsightsPageInner />
     </Suspense>
   );
