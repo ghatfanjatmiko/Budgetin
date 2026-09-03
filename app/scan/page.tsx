@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
 import { useToast } from "@/components/Toast";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import LoadingState from "@/components/LoadingState";
+import { ArrowLeft, Loader2, Crown } from "lucide-react";
 
 type Item = { name: string; qty: number; price: number };
 type ScanResult = { merchant: string; kind: "Jajan" | "Nongkrong"; items: Item[] };
@@ -16,11 +17,28 @@ export default function ScanPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
+  const [checkingPlan, setCheckingPlan] = useState(true);
+  const [isPlus, setIsPlus] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "scanning" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.from("profiles").select("is_plus").eq("user_id", user.id).maybeSingle();
+        setIsPlus(data?.is_plus ?? false);
+      }
+      setCheckingPlan(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
     return new Promise((resolve, reject) => {
@@ -91,6 +109,43 @@ export default function ScanPage() {
     setSaving(false);
     showToast("Transaksi dari struk tersimpan.", "success");
     router.push("/tracker");
+  }
+
+  if (checkingPlan) {
+    return (
+      <div className="min-h-screen bg-paper px-5 py-6 max-w-lg mx-auto">
+        <LoadingState />
+      </div>
+    );
+  }
+
+  if (!isPlus) {
+    return (
+      <div className="min-h-screen bg-paper px-5 py-6 max-w-lg mx-auto">
+        <div className="flex items-center gap-2 mb-4">
+          <Link href="/tracker/add" className="text-gray-400">
+            <ArrowLeft size={20} />
+          </Link>
+          <h1 className="text-lg font-bold text-ledger">Scan Struk</h1>
+        </div>
+        <div className="app-card p-6 flex flex-col items-center text-center">
+          <div className="w-16 h-16 rounded-2xl bg-coin/20 flex items-center justify-center mb-3">
+            <Crown size={28} className="text-coin" />
+          </div>
+          <p className="font-semibold text-sm text-ink mb-1">Fitur Budgetin&apos; Plus</p>
+          <p className="text-xs text-gray-400 mb-4">
+            Scan Struk dengan AI cuma tersedia buat pengguna Plus. Upgrade dulu
+            di halaman Profil buat pakai fitur ini.
+          </p>
+          <Link
+            href="/profile"
+            className="w-full bg-ledger text-white text-sm font-semibold rounded-full py-3"
+          >
+            Lihat Upgrade ke Plus
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

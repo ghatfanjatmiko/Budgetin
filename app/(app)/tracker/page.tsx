@@ -43,7 +43,8 @@ function TrackerPageInner() {
       .gte("date", month)
       .lt("date", monthEnd)
       .order("date", { ascending: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500); // batas aman — kalau kepentok, riwayat terlama di bulan itu nggak ikut kebawa
     setTransactions(data ?? []);
     setLoading(false);
   }

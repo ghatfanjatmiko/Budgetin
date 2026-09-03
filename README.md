@@ -11,20 +11,21 @@ Profil) + Insights + Scan Struk dengan AI beneran (bukan simulasi).
 - **Tagihan** — Langganan & Hutang, terpisah tab
 - **Insights** — prediksi akhir bulan (dihitung nyata dari transaksi), kategori pengeluaran tertinggi, performa vs bulan lalu, **Benchmark Komunitas Kampus** (agregat anonim, minimal 3 pengguna per kampus)
 - **Scan Struk dengan AI** — foto struk beneran dikirim ke Google Gemini buat dibaca otomatis
-- **Profil** — info akun, input kampus (buat Benchmark), banner upgrade Budgetin' Plus (belum ada pembayaran beneran), unduh laporan
-- **Unduh Laporan** — export CSV asli dari data transaksi
+- **Profil** — info akun, ganti password, kelola data, input kampus (buat Benchmark), banner upgrade Budgetin' Plus (approval manual via WhatsApp, bukan payment gateway otomatis)
+- **Unduh Laporan** — CSV gratis, Excel &amp; PDF khusus Plus
+- **Paywall minimal** — Scan Struk &amp; export Excel/PDF dikunci di belakang status Plus; status ini cuma bisa diubah lewat service_role key (dev), bukan dari client, jadi nggak bisa diakalin sendiri sama pengguna
 - Sidebar di desktop, bottom nav di mobile — responsive
 - Month Picker — bisa lihat histori bulan-bulan sebelumnya
 - Row Level Security aktif di semua tabel; benchmark kampus cuma mengembalikan agregat, tidak pernah data mentah antar pengguna
 
 **Yang masih placeholder (belum fungsional):**
-- Tombol "Upgrade Sekarang" di Profil (belum ada sistem pembayaran)
-- Menu Keamanan/Preferensi/Kelola Data di Profil (baru navigasi kosong)
+- Upgrade ke Plus diproses MANUAL — pengguna klik "Upgrade" → chat WA admin →
+  admin toggle `is_plus` di database. Belum ada payment gateway otomatis
+  (Midtrans/Xendit dll).
 - **Catat via WhatsApp/Telegram bot** — BUKAN sekadar nambah kode di app ini,
   butuh proyek terpisah: daftar WhatsApp Business API / Twilio, server
   webhook buat nerima pesan masuk, dan parsing teks jadi transaksi. Kalau mau
   dikerjain, lebih baik dibahas sebagai fase terpisah.
-- Format laporan Excel/PDF (baru CSV)
 
 ---
 
@@ -47,12 +48,66 @@ create table if not exists profiles (
 alter table profiles enable row level security;
 create policy "individual access" on profiles
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 3. Kolom is_plus + proteksi biar cuma admin (service_role) yang bisa
+--    ubah, bukan pengguna sendiri (fitur paywall)
+alter table profiles add column if not exists is_plus boolean not null default false;
+
+create or replace function prevent_self_plus_upgrade()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  if auth.role() <> 'service_role' and new.is_plus is distinct from old.is_plus then
+    new.is_plus := old.is_plus;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prevent_self_plus_upgrade on profiles;
+create trigger trg_prevent_self_plus_upgrade
+before update on profiles
+for each row execute function prevent_self_plus_upgrade();
 ```
 
 Untuk fungsi `get_campus_benchmark`, paling gampang copy-paste ulang seluruh
 isi `supabase/schema.sql` ke SQL Editor dan jalankan — semua perintahnya pakai
 `if not exists` / `create or replace` jadi aman dijalankan berkali-kali tanpa
 merusak data yang sudah ada.
+
+### Cara meng-upgrade seseorang ke Plus (manual)
+
+Setelah orangnya chat WA & bayar (di luar sistem, manual), buka **SQL
+Editor** Supabase dan jalankan (ganti email-nya):
+
+```sql
+update profiles set is_plus = true
+where user_id = (select id from auth.users where email = 'email-orangnya@gmail.com');
+```
+
+Kalau baris `profiles` orang itu belum ada (dia belum pernah isi kampus),
+insert dulu:
+
+```sql
+insert into profiles (user_id, is_plus)
+select id, true from auth.users where email = 'email-orangnya@gmail.com'
+on conflict (user_id) do update set is_plus = true;
+```
+
+### Setup tombol "Upgrade Sekarang" (nomor WhatsApp)
+
+Tambahkan satu env variable lagi di `.env.local` (dan di Vercel):
+
+```
+NEXT_PUBLIC_ADMIN_WHATSAPP=62812xxxxxxx
+```
+
+Format nomor internasional tanpa tanda `+` atau spasi (contoh: nomor
+`0812-3456-7890` ditulis `6281234567890`). Tombol "Upgrade Sekarang" dan
+"Kirim Masukan" di Profil bakal buka chat WhatsApp ke nomor ini otomatis,
+lengkap dengan pesan & email pengguna sudah terisi duluan.
 
 ---
 

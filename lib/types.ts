@@ -37,6 +37,7 @@ export type Transaction = {
 export type Profile = {
   user_id: string;
   campus: string | null;
+  is_plus: boolean;
 };
 
 export type SubscriptionDebt = {

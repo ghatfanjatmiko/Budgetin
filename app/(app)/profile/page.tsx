@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Crown, User, Shield, Sliders, FileDown, Database, HelpCircle, MessageSquare, ChevronRight, LogOut, GraduationCap } from "lucide-react";
+import { upgradeWhatsAppLink, feedbackWhatsAppLink } from "@/lib/whatsapp";
+import { useToast } from "@/components/Toast";
+import { Crown, User, Shield, FileDown, Database, HelpCircle, MessageSquare, ChevronRight, LogOut, GraduationCap, Check } from "lucide-react";
 
 export default function ProfilePage() {
   const supabase = createClient();
   const router = useRouter();
+  const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [campus, setCampus] = useState("");
+  const [isPlus, setIsPlus] = useState(false);
   const [savingCampus, setSavingCampus] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
 
@@ -25,8 +29,9 @@ export default function ProfilePage() {
     } = await supabase.auth.getUser();
     setEmail(user?.email ?? "");
     if (user) {
-      const { data } = await supabase.from("profiles").select("campus").eq("user_id", user.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("campus, is_plus").eq("user_id", user.id).maybeSingle();
       setCampus(data?.campus ?? "");
+      setIsPlus(data?.is_plus ?? false);
     }
   }
 
@@ -39,6 +44,30 @@ export default function ProfilePage() {
     setSavingCampus(false);
     setSavedTick(true);
     setTimeout(() => setSavedTick(false), 1500);
+  }
+
+  function handleUpgrade() {
+    const link = upgradeWhatsAppLink(email);
+    if (!link) {
+      showToast(
+        "Nomor WA admin belum di-set (env NEXT_PUBLIC_ADMIN_WHATSAPP).",
+        "error"
+      );
+      return;
+    }
+    window.open(link, "_blank");
+  }
+
+  function handleFeedback() {
+    const link = feedbackWhatsAppLink(email);
+    if (!link) {
+      showToast(
+        "Nomor WA admin belum di-set (env NEXT_PUBLIC_ADMIN_WHATSAPP).",
+        "error"
+      );
+      return;
+    }
+    window.open(link, "_blank");
   }
 
   async function handleLogout() {
@@ -68,12 +97,26 @@ export default function ProfilePage() {
           <Crown size={16} className="text-coin" />
           <p className="font-semibold text-sm">Budgetin&apos; Plus</p>
         </div>
-        <p className="text-xs text-white/70 mb-3">
-          Upgrade untuk fitur premium dan insight lebih lengkap.
-        </p>
-        <button className="bg-coin text-ledger text-sm font-semibold rounded-full px-4 py-2">
-          Upgrade Sekarang
-        </button>
+        {isPlus ? (
+          <div className="flex items-center gap-2 text-sm text-coin">
+            <Check size={16} /> Kamu sudah Plus — semua fitur premium aktif.
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-white/70 mb-3">
+              Buka Scan Struk AI dan export laporan Excel/PDF.
+            </p>
+            <button
+              onClick={handleUpgrade}
+              className="bg-coin text-ledger text-sm font-semibold rounded-full px-4 py-2"
+            >
+              Upgrade Sekarang
+            </button>
+            <p className="mt-2 text-[10px] text-white/50">
+              Upgrade diproses manual lewat WhatsApp, bukan otomatis.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Kampus — dipakai untuk Benchmark Komunitas Kampus */}
@@ -103,21 +146,30 @@ export default function ProfilePage() {
       </div>
 
       <ProfileSection title="Akun">
-        <ProfileRow icon={User} label="Informasi Akun" />
-        <ProfileRow icon={Shield} label="Keamanan" />
-        <ProfileRow icon={Sliders} label="Preferensi" />
+        <Link href="/profile/akun">
+          <ProfileRow icon={User} label="Informasi Akun" />
+        </Link>
+        <Link href="/profile/keamanan">
+          <ProfileRow icon={Shield} label="Keamanan" />
+        </Link>
       </ProfileSection>
 
       <ProfileSection title="Data & Laporan">
         <Link href="/laporan">
           <ProfileRow icon={FileDown} label="Unduh Laporan" />
         </Link>
-        <ProfileRow icon={Database} label="Kelola Data" />
+        <Link href="/profile/kelola-data">
+          <ProfileRow icon={Database} label="Kelola Data" />
+        </Link>
       </ProfileSection>
 
       <ProfileSection title="Bantuan">
-        <ProfileRow icon={HelpCircle} label="Pusat Bantuan" />
-        <ProfileRow icon={MessageSquare} label="Kirim Masukan" />
+        <Link href="/panduan">
+          <ProfileRow icon={HelpCircle} label="Pusat Bantuan" />
+        </Link>
+        <div onClick={handleFeedback}>
+          <ProfileRow icon={MessageSquare} label="Kirim Masukan" />
+        </div>
       </ProfileSection>
 
       <button
