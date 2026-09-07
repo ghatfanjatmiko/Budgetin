@@ -180,6 +180,19 @@ $$;
 
 grant execute on function get_campus_benchmark(date) to authenticated;
 
+-- ---------- Rate limit Scan Struk AI ----------
+create table if not exists scan_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null default current_date,
+  count int not null default 0,
+  primary key (user_id, day)
+);
+
+alter table scan_usage enable row level security;
+
+create policy "individual access" on scan_usage
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 -- ---------- Index bantu query bulan berjalan ----------
 create index if not exists idx_income_month on income (user_id, month);
 create index if not exists idx_savings_month on savings (user_id, month);

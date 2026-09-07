@@ -30,20 +30,21 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute =
+  const isPublicRoute =
+    request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/auth") ||
     request.nextUrl.pathname.startsWith("/set-password");
 
   // Belum login & mau akses halaman terproteksi -> lempar ke /login
-  if (!user && !isAuthRoute) {
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Sudah login tapi masih di /login -> lempar ke dashboard
-  if (user && request.nextUrl.pathname === "/login") {
+  // Sudah login tapi masih di /login atau landing page -> lempar ke dashboard
+  if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

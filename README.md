@@ -109,6 +109,40 @@ Format nomor internasional tanpa tanda `+` atau spasi (contoh: nomor
 "Kirim Masukan" di Profil bakal buka chat WhatsApp ke nomor ini otomatis,
 lengkap dengan pesan & email pengguna sudah terisi duluan.
 
+### 4. Tabel rate limit Scan Struk (WAJIB, kalau belum jalanin ulang schema.sql lengkap)
+
+```sql
+create table if not exists scan_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null default current_date,
+  count int not null default 0,
+  primary key (user_id, day)
+);
+alter table scan_usage enable row level security;
+create policy "individual access" on scan_usage
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```
+
+### 5. Setup Hapus Akun Permanen (WAJIB kalau mau fitur ini jalan)
+
+Fitur "Hapus Akun Permanen" butuh **service_role key** Supabase (beda dari
+anon/publishable key yang biasa) karena harus manggil Admin API buat hapus
+akun beneran.
+
+1. Supabase Dashboard → **Project Settings** → **API Keys**
+2. Cari **service_role** (atau **Secret keys** kalau kamu pakai sistem key
+   baru) → copy nilainya
+3. Tambahkan ke `.env.local` DAN ke Environment Variables Vercel:
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=isi-dengan-service-role-key-kamu
+   ```
+
+> ⚠️ **PENTING:** key ini beda dari `NEXT_PUBLIC_SUPABASE_ANON_KEY` — dia
+> punya akses PENUH ke database (bisa bypass semua Row Level Security).
+> JANGAN PERNAH kasih prefix `NEXT_PUBLIC_` ke variable ini, dan jangan
+> pernah commit ke Git / kirim ke siapapun. Kalau bocor, langsung generate
+> ulang dari dashboard Supabase.
+
 ---
 
 ## 1. Setup Supabase

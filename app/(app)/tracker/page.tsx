@@ -170,11 +170,37 @@ function TrackerPageInner() {
 }
 
 function SplitSheet({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
+  const [mode, setMode] = useState<"rata" | "custom">("rata");
   const [people, setPeople] = useState(2);
+  const [participants, setParticipants] = useState([
+    { name: "Kamu", amount: 0 },
+    { name: "Teman 1", amount: 0 },
+  ]);
   const [copied, setCopied] = useState(false);
   const total = Number(transaction.qty) * Number(transaction.price);
   const perPerson = Math.ceil(total / Math.max(people, 1));
-  const message = `Halo semua! Untuk ${transaction.name}, totalnya ${rupiah(total)}. Kalau dibagi ${people} orang, masing-masing ${rupiah(perPerson)} ya 🙌`;
+
+  const customTotal = participants.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const sisa = total - customTotal;
+
+  function updateParticipant(i: number, field: "name" | "amount", value: string) {
+    setParticipants((prev) =>
+      prev.map((p, idx) => (idx === i ? { ...p, [field]: field === "amount" ? Number(value) || 0 : value } : p))
+    );
+  }
+  function addParticipant() {
+    setParticipants((prev) => [...prev, { name: `Teman ${prev.length}`, amount: 0 }]);
+  }
+  function removeParticipant(i: number) {
+    setParticipants((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  const message =
+    mode === "rata"
+      ? `Halo semua! Untuk ${transaction.name}, totalnya ${rupiah(total)}. Kalau dibagi ${people} orang, masing-masing ${rupiah(perPerson)} ya 🙌`
+      : `Halo semua! Rincian ${transaction.name} (total ${rupiah(total)}):\n${participants
+          .map((p) => `- ${p.name || "Tanpa nama"}: ${rupiah(p.amount)}`)
+          .join("\n")}\n\nMakasih ya 🙌`;
 
   async function copyMessage() {
     await navigator.clipboard.writeText(message);
@@ -184,11 +210,61 @@ function SplitSheet({ transaction, onClose }: { transaction: Transaction; onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-ledger/35 p-0 md:items-center md:justify-center md:p-6">
-      <div className="w-full rounded-t-[28px] bg-[#f8f6f1] p-5 shadow-2xl md:max-w-md md:rounded-[28px]">
-        <div className="mb-5 flex items-start justify-between"><div><p className="text-xs font-semibold text-coin">SPLIT NONGKRONG</p><h2 className="mt-1 text-xl font-bold tracking-tight text-ledger">{transaction.name}</h2><p className="mt-1 text-sm text-gray-500">Total {rupiah(total)}</p></div><button onClick={onClose} aria-label="Tutup" className="grid h-9 w-9 place-items-center rounded-full bg-white text-gray-500"><X size={18} /></button></div>
-        <div className="app-card p-4"><p className="text-sm font-semibold text-ledger">Berapa orang yang ikut?</p><p className="mt-1 text-xs text-gray-400">Termasuk kamu yang membayar duluan.</p><div className="mt-4 flex items-center justify-between"><button onClick={() => setPeople((count) => Math.max(1, count - 1))} className="grid h-11 w-11 place-items-center rounded-xl bg-paper text-xl font-bold">−</button><div className="text-center"><p className="text-3xl font-bold tracking-tight text-ledger">{people}</p><p className="text-xs text-gray-400">orang</p></div><button onClick={() => setPeople((count) => count + 1)} className="grid h-11 w-11 place-items-center rounded-xl bg-ledger text-xl font-bold text-white">+</button></div></div>
-        <div className="mt-3 rounded-2xl bg-ledger p-4 text-white"><p className="text-xs text-white/65">Bagian per orang</p><p className="mt-1 text-2xl font-bold tracking-tight">{rupiah(perPerson)}</p><p className="mt-1 text-[11px] text-white/60">Pembulatan ke atas; total dibayar dahulu oleh kamu.</p></div>
-        <div className="mt-3 rounded-2xl bg-white p-3 text-xs leading-relaxed text-gray-600">{message}</div>
+      <div className="w-full rounded-t-[28px] bg-[#f8f6f1] p-5 shadow-2xl md:max-w-md md:rounded-[28px] max-h-[90vh] overflow-y-auto">
+        <div className="mb-4 flex items-start justify-between"><div><p className="text-xs font-semibold text-coin">SPLIT NONGKRONG</p><h2 className="mt-1 text-xl font-bold tracking-tight text-ledger">{transaction.name}</h2><p className="mt-1 text-sm text-gray-500">Total {rupiah(total)}</p></div><button onClick={onClose} aria-label="Tutup" className="grid h-9 w-9 place-items-center rounded-full bg-white text-gray-500"><X size={18} /></button></div>
+
+        <div className="mb-4 flex gap-2">
+          <button onClick={() => setMode("rata")} className={`flex-1 rounded-full py-2 text-sm font-medium ${mode === "rata" ? "bg-ledger text-white" : "bg-white text-gray-500"}`}>Bagi Rata</button>
+          <button onClick={() => setMode("custom")} className={`flex-1 rounded-full py-2 text-sm font-medium ${mode === "custom" ? "bg-ledger text-white" : "bg-white text-gray-500"}`}>Custom per Orang</button>
+        </div>
+
+        {mode === "rata" ? (
+          <>
+            <div className="app-card p-4"><p className="text-sm font-semibold text-ledger">Berapa orang yang ikut?</p><p className="mt-1 text-xs text-gray-400">Termasuk kamu yang membayar duluan.</p><div className="mt-4 flex items-center justify-between"><button onClick={() => setPeople((count) => Math.max(1, count - 1))} className="grid h-11 w-11 place-items-center rounded-xl bg-paper text-xl font-bold">−</button><div className="text-center"><p className="text-3xl font-bold tracking-tight text-ledger">{people}</p><p className="text-xs text-gray-400">orang</p></div><button onClick={() => setPeople((count) => count + 1)} className="grid h-11 w-11 place-items-center rounded-xl bg-ledger text-xl font-bold text-white">+</button></div></div>
+            <div className="mt-3 rounded-2xl bg-ledger p-4 text-white"><p className="text-xs text-white/65">Bagian per orang</p><p className="mt-1 text-2xl font-bold tracking-tight">{rupiah(perPerson)}</p><p className="mt-1 text-[11px] text-white/60">Pembulatan ke atas; total dibayar dahulu oleh kamu.</p></div>
+          </>
+        ) : (
+          <div className="app-card p-4">
+            <p className="mb-3 text-sm font-semibold text-ledger">Rincian per orang</p>
+            <div className="space-y-2">
+              {participants.map((p, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    value={p.name}
+                    onChange={(e) => updateParticipant(i, "name", e.target.value)}
+                    placeholder="Nama"
+                    className="field-control flex-1 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    value={p.amount || ""}
+                    onChange={(e) => updateParticipant(i, "amount", e.target.value)}
+                    placeholder="0"
+                    className="field-control w-28 py-2 text-right text-sm"
+                  />
+                  {participants.length > 1 && (
+                    <button onClick={() => removeParticipant(i)} className="text-danger">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={addParticipant} className="mt-3 w-full rounded-xl bg-paper py-2 text-xs font-semibold text-ledger">
+              + Tambah Orang
+            </button>
+            <div className={`mt-3 rounded-xl px-3 py-2 text-xs font-medium ${sisa === 0 ? "bg-leaf/10 text-leaf" : "bg-coin/20 text-ledger"}`}>
+              {sisa === 0
+                ? "Pas! Semua bagian sudah dialokasikan."
+                : sisa > 0
+                ? `Sisa ${rupiah(sisa)} belum dialokasikan.`
+                : `Kelebihan ${rupiah(Math.abs(sisa))} dari total.`}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3 whitespace-pre-line rounded-2xl bg-white p-3 text-xs leading-relaxed text-gray-600">{message}</div>
         <button onClick={copyMessage} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-coin py-3 text-sm font-bold text-ledger">{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? "Pesan tersalin" : "Salin pesan untuk WhatsApp"}</button>
       </div>
     </div>

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+
+const DAILY_SCAN_LIMIT = 20;
 
 const EXTRACTION_PROMPT = `Kamu membaca foto struk belanja Indonesia. Kembalikan HANYA JSON valid, tanpa teks lain, tanpa markdown fences, dengan bentuk persis:
 
@@ -23,6 +26,32 @@ export async function POST(request: Request) {
           "GEMINI_API_KEY belum di-set di .env.local. Lihat README bagian 'Setup Scan Struk AI'.",
       },
       { status: 500 }
+    );
+  }
+
+  // ---------- Auth + rate limit ----------
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Kamu harus login untuk pakai fitur ini." }, { status: 401 });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: usageRow } = await supabase
+    .from("scan_usage")
+    .select("count")
+    .eq("user_id", user.id)
+    .eq("day", today)
+    .maybeSingle();
+
+  const currentCount = usageRow?.count ?? 0;
+  if (currentCount >= DAILY_SCAN_LIMIT) {
+    return NextResponse.json(
+      { error: `Batas ${DAILY_SCAN_LIMIT} scan struk per hari sudah tercapai. Coba lagi besok ya.` },
+      { status: 429 }
     );
   }
 
@@ -83,6 +112,11 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
+
+    // catat pemakaian cuma kalau beneran berhasil
+    await supabase
+      .from("scan_usage")
+      .upsert({ user_id: user.id, day: today, count: currentCount + 1 });
 
     return NextResponse.json(parsed);
   } catch (err: any) {

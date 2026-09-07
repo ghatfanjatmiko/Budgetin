@@ -11,6 +11,8 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -28,6 +30,7 @@ function InsightsPageInner() {
   const [lastMonthActual, setLastMonthActual] = useState(0);
   const [campus, setCampus] = useState<string | null>(null);
   const [benchmark, setBenchmark] = useState<{ user_count: number; avg_total: number } | null>(null);
+  const [trend, setTrend] = useState<{ label: string; total: number }[]>([]);
 
   useEffect(() => {
     load();
@@ -46,6 +49,32 @@ function InsightsPageInner() {
     setLastMonthActual(
       (tLast.data ?? []).reduce((s: number, r: any) => s + Number(r.qty) * Number(r.price), 0)
     );
+
+    // ---------- Tren 6 bulan terakhir ----------
+    const [y, m] = month.split("-").map(Number);
+    const sixMonthsAgo = new Date(y, m - 1 - 5, 1);
+    const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, "0")}-01`;
+    const { data: trendRaw } = await supabase
+      .from("transactions")
+      .select("date, qty, price")
+      .gte("date", sixMonthsAgoStr)
+      .lt("date", monthEnd);
+
+    const byMonth: Record<string, number> = {};
+    (trendRaw ?? []).forEach((r: any) => {
+      const key = r.date.slice(0, 7); // YYYY-MM
+      byMonth[key] = (byMonth[key] || 0) + Number(r.qty) * Number(r.price);
+    });
+    const trendData: { label: string; total: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(y, m - 1 - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      trendData.push({
+        label: d.toLocaleDateString("id-ID", { month: "short" }),
+        total: byMonth[key] || 0,
+      });
+    }
+    setTrend(trendData);
 
     const {
       data: { user },
@@ -165,6 +194,22 @@ function InsightsPageInner() {
             </p>
           </>
         )}
+      </div>
+
+      {/* Tren 6 bulan */}
+      <div className="app-card p-5">
+        <p className="font-semibold text-sm text-ledger mb-1">Tren 6 Bulan Terakhir</p>
+        <p className="text-xs text-gray-400 mb-3">Total jajan &amp; nongkrong per bulan</p>
+        <div className="h-40">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={trend}>
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip formatter={(v: any) => rupiah(Number(v))} />
+              <Bar dataKey="total" fill="#D9A94A" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Pengeluaran tertinggi */}
