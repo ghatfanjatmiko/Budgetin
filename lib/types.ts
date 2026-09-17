@@ -16,6 +16,7 @@ export type FixedExpense = {
   id: string;
   category: string;
   amount: number;
+  envelope_id?: string | null;
 };
 
 export type VariableExpense = {
@@ -23,6 +24,18 @@ export type VariableExpense = {
   category: string;
   plan_amount: number;
   is_auto: boolean;
+  envelope_id?: string | null;
+};
+
+// Fitur Budgetin' Plus — Alokasi Budget (%). Satu "envelope" adalah kategori
+// custom (mis. "Kebutuhan Sehari-hari") yang dapat jatah persen (0..1) dari
+// total pemasukan bulan itu. fixed_expenses & variable_expenses bisa di-assign
+// ke satu envelope lewat kolom envelope_id.
+export type BudgetEnvelope = {
+  id: string;
+  name: string;
+  percentage: number; // pecahan 0..1, bukan 0..100
+  sort_order: number;
 };
 
 export type Transaction = {

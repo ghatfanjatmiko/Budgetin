@@ -1,7 +1,8 @@
 "use client";
 
 import LoadingState from "@/components/LoadingState";
-import { useEffect, useState, Suspense} from "react";
+import { Suspense } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
@@ -42,97 +43,90 @@ function streakBadge(streak: number): { label: string; emoji: string } | null {
   return null;
 }
 
+async function fetchHomeData(supabase: ReturnType<typeof createClient>, month: string, monthEnd: string) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const lastMonthStart = previousMonthStart(month);
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+
+  const [i, s, f, v, tx, txLast, txStreak] = await Promise.all([
+    supabase.from("income").select("amount").eq("month", month),
+    supabase.from("savings").select("amount").eq("month", month),
+    supabase.from("fixed_expenses").select("amount").eq("month", month),
+    supabase.from("variable_expenses").select("plan_amount").eq("month", month),
+    supabase.from("transactions").select("*").gte("date", month).lt("date", monthEnd).order("date", { ascending: false }),
+    supabase.from("transactions").select("qty, price").gte("date", lastMonthStart).lt("date", month),
+    supabase.from("transactions").select("date").gte("date", sixtyDaysAgo),
+  ]);
+
+  const inc = (i.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
+  const sav = (s.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
+  const fix = (f.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
+  const plan = (v.data ?? []).reduce((s, r: any) => s + Number(r.plan_amount), 0);
+  const txData = (tx.data ?? []) as Tx[];
+  const actual = txData.reduce((s, r) => s + Number(r.qty) * Number(r.price), 0);
+  const lastActual = (txLast.data ?? []).reduce(
+    (s: number, r: any) => s + Number(r.qty) * Number(r.price),
+    0
+  );
+
+  const streakDates = ((txStreak.data ?? []) as { date: string }[]).map((r) => r.date);
+
+  const byDay: Record<string, number> = {};
+  txData.forEach((t) => {
+    const d = t.date.slice(8, 10);
+    byDay[d] = (byDay[d] || 0) + Number(t.qty) * Number(t.price);
+  });
+  const chartData = Object.entries(byDay)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([day, total]) => ({ day, total }));
+
+  return {
+    greetingName: user?.email?.split("@")[0] ?? "",
+    incomeTotal: inc,
+    savingsTotal: sav,
+    fixedTotal: fix,
+    planTotal: plan + fix,
+    actualTotal: actual,
+    lastMonthActual: lastActual,
+    recentTx: txData.slice(0, 5),
+    chartData,
+    streak: computeStreak(streakDates),
+  };
+}
+
 function HomePageInner() {
   const supabase = createClient();
   const month = useBudgetMonth();
   const monthEnd = monthEndExclusive(month);
 
-  const [loading, setLoading] = useState(true);
-  const [greetingName, setGreetingName] = useState("");
-  const [incomeTotal, setIncomeTotal] = useState(0);
-  const [savingsTotal, setSavingsTotal] = useState(0);
-  const [fixedTotal, setFixedTotal] = useState(0);
-  const [planTotal, setPlanTotal] = useState(0);
-  const [actualTotal, setActualTotal] = useState(0);
-  const [recentTx, setRecentTx] = useState<Tx[]>([]);
-  const [chartData, setChartData] = useState<{ day: string; total: number }[]>([]);
-  const [lastMonthActual, setLastMonthActual] = useState(0);
-  const [streak, setStreak] = useState(0);
+  const { data, isLoading } = useQuery({
+    queryKey: ["home", month],
+    queryFn: () => fetchHomeData(supabase, month, monthEnd),
+  });
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
+  if (isLoading || !data) return <LoadingState />;
 
-  async function load() {
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    setGreetingName(user?.email?.split("@")[0] ?? "");
-
-    const lastMonthStart = previousMonthStart(month);
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
-
-    const [i, s, f, v, tx, txLast, txStreak] = await Promise.all([
-      supabase.from("income").select("amount").eq("month", month),
-      supabase.from("savings").select("amount").eq("month", month),
-      supabase.from("fixed_expenses").select("amount").eq("month", month),
-      supabase.from("variable_expenses").select("plan_amount").eq("month", month),
-      supabase.from("transactions").select("*").gte("date", month).lt("date", monthEnd).order("date", { ascending: false }),
-      supabase
-        .from("transactions")
-        .select("qty, price")
-        .gte("date", lastMonthStart)
-        .lt("date", month),
-      supabase.from("transactions").select("date").gte("date", sixtyDaysAgo),
-    ]);
-
-    const inc = (i.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
-    const sav = (s.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
-    const fix = (f.data ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
-    const plan = (v.data ?? []).reduce((s, r: any) => s + Number(r.plan_amount), 0);
-    const txData = (tx.data ?? []) as Tx[];
-    const actual = txData.reduce((s, r) => s + Number(r.qty) * Number(r.price), 0);
-    const lastActual = (txLast.data ?? []).reduce(
-      (s: number, r: any) => s + Number(r.qty) * Number(r.price),
-      0
-    );
-
-    setIncomeTotal(inc);
-    setSavingsTotal(sav);
-    setFixedTotal(fix);
-    setPlanTotal(plan + fix);
-    setActualTotal(actual);
-    setLastMonthActual(lastActual);
-    setRecentTx(txData.slice(0, 5));
-
-    const streakDates = ((txStreak.data ?? []) as { date: string }[]).map((r) => r.date);
-    setStreak(computeStreak(streakDates));
-
-    // group by day for the mini chart
-    const byDay: Record<string, number> = {};
-    txData.forEach((t) => {
-      const d = t.date.slice(8, 10);
-      byDay[d] = (byDay[d] || 0) + Number(t.qty) * Number(t.price);
-    });
-    setChartData(
-      Object.entries(byDay)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([day, total]) => ({ day, total }))
-    );
-
-    setLoading(false);
-  }
+  const {
+    greetingName,
+    incomeTotal,
+    savingsTotal,
+    fixedTotal,
+    planTotal,
+    actualTotal,
+    lastMonthActual,
+    recentTx,
+    chartData,
+    streak,
+  } = data;
 
   const totalExpense = fixedTotal + actualTotal;
   const sisa = incomeTotal - savingsTotal - totalExpense;
   const budgetPct = planTotal > 0 ? Math.max(0, Math.min(100, ((planTotal - totalExpense) / planTotal) * 100)) : 100;
   const pctVsLastMonth =
     lastMonthActual > 0 ? (((lastMonthActual - actualTotal) / lastMonthActual) * 100).toFixed(1) : null;
-
-  if (loading) return <LoadingState />;
 
   return (
     <div className="space-y-3.5">
@@ -148,7 +142,7 @@ function HomePageInner() {
           <MonthPicker compact />
         </div>
         </div>
-        <button aria-label="Notifikasi" className="grid h-10 w-10 place-items-center rounded-full bg-white text-ledger shadow-sm"><Bell size={19} /></button>
+        <button aria-label="Notifikasi" className="grid h-10 w-10 place-items-center rounded-full bg-surface text-ledger shadow-sm"><Bell size={19} /></button>
       </div>
 
       {/* Balance card */}

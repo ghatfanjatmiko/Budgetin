@@ -50,7 +50,7 @@ export default function Nav() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition ${
               pathname === t.href
                 ? "bg-ledger text-white"
-                : "bg-white text-gray-500 border border-line"
+                : "bg-surface text-gray-500 border border-line"
             }`}
           >
             {t.label}

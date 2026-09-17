@@ -1,68 +1,87 @@
 "use client";
 
-import { useEffect, useState, Suspense} from "react";
+import { useState, Suspense } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
 import { useToast } from "@/components/Toast";
 import LoadingState from "@/components/LoadingState";
 import { monthEndExclusive, previousMonthStart, useBudgetMonth } from "@/lib/month";
 import MonthPicker from "@/components/MonthPicker";
+import Link from "next/link";
+import { Crown } from "lucide-react";
 import type {
   Income,
   Saving,
   FixedExpense,
   VariableExpense,
+  BudgetEnvelope,
 } from "@/lib/types";
+
+async function fetchBudgetData(supabase: ReturnType<typeof createClient>, month: string, monthEnd: string) {
+  const [i, s, f, v, t, env, prof] = await Promise.all([
+    supabase.from("income").select("*").eq("month", month).order("created_at"),
+    supabase.from("savings").select("*").eq("month", month).order("created_at"),
+    supabase.from("fixed_expenses").select("*").eq("month", month).order("created_at"),
+    supabase.from("variable_expenses").select("*").eq("month", month).order("created_at"),
+    supabase.from("transactions").select("kind, qty, price").gte("date", month).lt("date", monthEnd),
+    // Fitur Plus — Alokasi Budget (%). Kalau user bukan Plus / belum setup,
+    // ini cuma balikin array kosong dan tidak pengaruh ke apa pun di bawah.
+    supabase.from("budget_envelopes").select("*").eq("month", month).order("sort_order"),
+    supabase.from("profiles").select("is_plus").maybeSingle(),
+  ]);
+
+  const total = (t.data ?? []).reduce(
+    (sum: number, r: any) => sum + Number(r.qty) * Number(r.price),
+    0
+  );
+  const byKind = (t.data ?? []).reduce(
+    (sum: { Jajan: number; Nongkrong: number }, r: any) => {
+      const kind = r.kind as "Jajan" | "Nongkrong";
+      if (kind === "Jajan" || kind === "Nongkrong") sum[kind] += Number(r.qty) * Number(r.price);
+      return sum;
+    },
+    { Jajan: 0, Nongkrong: 0 }
+  );
+
+  return {
+    income: (i.data ?? []) as Income[],
+    savings: (s.data ?? []) as Saving[],
+    fixed: (f.data ?? []) as FixedExpense[],
+    variable: (v.data ?? []) as VariableExpense[],
+    autoActual: total,
+    autoActualByKind: byKind,
+    envelopes: (env.data ?? []) as BudgetEnvelope[],
+    isPlus: prof.data?.is_plus ?? false,
+  };
+}
 
 function DashboardPageInner() {
   const supabase = createClient();
   const { showToast } = useToast();
   const month = useBudgetMonth();
   const monthEnd = monthEndExclusive(month);
+  const queryClient = useQueryClient();
 
-  const [loading, setLoading] = useState(true);
-  const [income, setIncome] = useState<Income[]>([]);
-  const [savings, setSavings] = useState<Saving[]>([]);
-  const [fixed, setFixed] = useState<FixedExpense[]>([]);
-  const [variable, setVariable] = useState<VariableExpense[]>([]);
-  const [autoActual, setAutoActual] = useState(0);
-  const [autoActualByKind, setAutoActualByKind] = useState({ Jajan: 0, Nongkrong: 0 });
+  const { data, isLoading } = useQuery({
+    queryKey: ["budget", month],
+    queryFn: () => fetchBudgetData(supabase, month, monthEnd),
+  });
+
+  const income = data?.income ?? [];
+  const savings = data?.savings ?? [];
+  const fixed = data?.fixed ?? [];
+  const variable = data?.variable ?? [];
+  const autoActual = data?.autoActual ?? 0;
+  const autoActualByKind = data?.autoActualByKind ?? { Jajan: 0, Nongkrong: 0 };
+  const envelopes = data?.envelopes ?? [];
+  const isPlus = data?.isPlus ?? false;
+  const loading = isLoading;
   const [copying, setCopying] = useState(false);
 
   async function loadAll() {
-    setLoading(true);
-    const [i, s, f, v, t] = await Promise.all([
-      supabase.from("income").select("*").eq("month", month).order("created_at"),
-      supabase.from("savings").select("*").eq("month", month).order("created_at"),
-      supabase.from("fixed_expenses").select("*").eq("month", month).order("created_at"),
-      supabase.from("variable_expenses").select("*").eq("month", month).order("created_at"),
-      supabase.from("transactions").select("kind, qty, price").gte("date", month).lt("date", monthEnd),
-    ]);
-    setIncome(i.data ?? []);
-    setSavings(s.data ?? []);
-    setFixed(f.data ?? []);
-    setVariable(v.data ?? []);
-    const total = (t.data ?? []).reduce(
-      (sum: number, r: any) => sum + Number(r.qty) * Number(r.price),
-      0
-    );
-    const byKind = (t.data ?? []).reduce(
-      (sum: { Jajan: number; Nongkrong: number }, r: any) => {
-        const kind = r.kind as "Jajan" | "Nongkrong";
-        if (kind === "Jajan" || kind === "Nongkrong") sum[kind] += Number(r.qty) * Number(r.price);
-        return sum;
-      },
-      { Jajan: 0, Nongkrong: 0 }
-    );
-    setAutoActual(total);
-    setAutoActualByKind(byKind);
-    setLoading(false);
+    await queryClient.invalidateQueries({ queryKey: ["budget", month] });
   }
-
-  useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
 
   async function currentUserId() {
     const {
@@ -158,6 +177,50 @@ function DashboardPageInner() {
     loadAll();
   }
 
+  // ---------- Alokasi Budget (%) — Budgetin' Plus ----------
+  async function addEnvelope() {
+    await supabase.from("budget_envelopes").insert({
+      user_id: await currentUserId(),
+      month,
+      name: "Kategori Baru",
+      percentage: 0,
+      sort_order: envelopes.length,
+    });
+    loadAll();
+  }
+  async function updateEnvelope(id: string, field: string, value: any) {
+    await supabase.from("budget_envelopes").update({ [field]: value }).eq("id", id);
+    loadAll();
+  }
+  async function removeEnvelope(id: string) {
+    if (!confirm("Hapus kategori alokasi ini? Pengeluaran yang terhubung ke sini akan jadi \"Tanpa Alokasi\", bukan ikut terhapus.")) return;
+    await supabase.from("budget_envelopes").delete().eq("id", id);
+    showToast("Kategori alokasi dihapus.", "success");
+    loadAll();
+  }
+  async function assignFixedEnvelope(id: string, envelopeId: string) {
+    await supabase.from("fixed_expenses").update({ envelope_id: envelopeId || null }).eq("id", id);
+    loadAll();
+  }
+  async function assignVariableEnvelope(id: string, envelopeId: string) {
+    await supabase.from("variable_expenses").update({ envelope_id: envelopeId || null }).eq("id", id);
+    loadAll();
+  }
+
+  // Uang yang sudah "terpakai" di satu envelope: pengeluaran tetap yang
+  // di-assign ke situ, plus pengeluaran tidak tetap yang di-assign (pakai
+  // aktual dari Tracker kalau Auto, atau rencana kalau manual — karena
+  // kategori manual memang belum punya pencatatan aktual per baris).
+  function envelopeActual(envelopeId: string) {
+    const fromFixed = fixed
+      .filter((r) => r.envelope_id === envelopeId)
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const fromVariable = variable
+      .filter((r) => r.envelope_id === envelopeId)
+      .reduce((s, r) => s + (r.is_auto ? linkedActual(r.category, autoActual, autoActualByKind) : Number(r.plan_amount)), 0);
+    return fromFixed + fromVariable;
+  }
+
 
   async function copyFromPreviousMonth() {
     const hasExisting = income.length > 0 || savings.length > 0 || fixed.length > 0 || variable.length > 0;
@@ -210,6 +273,11 @@ function DashboardPageInner() {
   const sisa = incomeTotal - savingsTotal - totalExpense;
   const budgetTotal = fixedTotal + plannedVariable;
   const remainingPct = budgetTotal > 0 ? Math.max(0, Math.min(100, ((budgetTotal - totalExpense) / budgetTotal) * 100)) : 100;
+
+  // Alokasi Budget (%) — Budgetin' Plus
+  const envelopePctTotal = envelopes.reduce((s, e) => s + Number(e.percentage), 0);
+  const envelopePctWarning = envelopes.length > 0 && Math.abs(envelopePctTotal - 1) > 0.005;
+  const showEnvelopeColumn = isPlus && envelopes.length > 0;
 
   if (loading) {
     return <LoadingState />;
@@ -323,7 +391,7 @@ function DashboardPageInner() {
 
       {/* Pengeluaran Tetap */}
       <Section title="Pengeluaran Tetap" total={rupiah(fixedTotal)} onAdd={addFixed}>
-        <Table head={["Kategori", "Jumlah", ""]}>
+        <Table head={showEnvelopeColumn ? ["Kategori", "Jumlah", "Alokasi", ""] : ["Kategori", "Jumlah", ""]}>
           {fixed.map((row) => (
             <tr key={row.id} className="border-b border-dashed border-line">
               <Td>
@@ -338,6 +406,15 @@ function DashboardPageInner() {
                   onCommit={(v) => updateFixed(row.id, "amount", v)}
                 />
               </TdNum>
+              {showEnvelopeColumn && (
+                <Td>
+                  <EnvelopeSelect
+                    value={row.envelope_id ?? ""}
+                    envelopes={envelopes}
+                    onChange={(v) => assignFixedEnvelope(row.id, v)}
+                  />
+                </Td>
+              )}
               <TdAction>
                 <DeleteButton onClick={() => removeFixed(row.id)} />
               </TdAction>
@@ -348,7 +425,7 @@ function DashboardPageInner() {
 
       {/* Pengeluaran Tidak Tetap */}
       <Section title="Pengeluaran Tidak Tetap" onAdd={addVariable}>
-        <Table head={["Kategori", "Rencana", "Aktual", "Auto", ""]}>
+        <Table head={showEnvelopeColumn ? ["Kategori", "Rencana", "Aktual", "Auto", "Alokasi", ""] : ["Kategori", "Rencana", "Aktual", "Auto", ""]}>
           {variable.map((row) => (
             <tr key={row.id} className="border-b border-dashed border-line">
               <Td>
@@ -379,6 +456,15 @@ function DashboardPageInner() {
                   {row.is_auto ? "Aktif" : "Manual"}
                 </button>
               </Td>
+              {showEnvelopeColumn && (
+                <Td>
+                  <EnvelopeSelect
+                    value={row.envelope_id ?? ""}
+                    envelopes={envelopes}
+                    onChange={(v) => assignVariableEnvelope(row.id, v)}
+                  />
+                </Td>
+              )}
               <TdAction>
                 {!row.is_auto && <DeleteButton onClick={() => removeVariable(row.id)} />}
               </TdAction>
@@ -390,6 +476,106 @@ function DashboardPageInner() {
           &quot;Jajan&quot; atau &quot;Nongkrong&quot; akan mengambil total sesuai jenis transaksi.
         </p>
       </Section>
+
+      {/* Alokasi Budget (%) — Budgetin' Plus */}
+      <div>
+        <div className="mb-2 flex items-center gap-1.5 px-1">
+          <p className="text-sm font-bold text-ledger">Alokasi Budget (%)</p>
+          <span className="rounded-full bg-coin/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-coin">
+            Plus
+          </span>
+        </div>
+
+        {!isPlus ? (
+          <div className="app-card flex flex-col items-center p-5 text-center">
+            <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-coin/20">
+              <Crown size={24} className="text-coin" />
+            </div>
+            <p className="mb-1 text-sm font-semibold text-ink">Fitur Budgetin&apos; Plus</p>
+            <p className="mb-3 text-xs text-gray-400">
+              Bagi pemasukan otomatis ke kategori custom pakai persentase — misalnya
+              50% Kebutuhan Sehari-hari, 30% Dana Darurat, 20% Tabungan/Invest.
+              Sistem otomatis hitung nominal & pantau pemakaiannya. Cuma tersedia
+              buat pengguna Plus.
+            </p>
+            <Link
+              href="/profile"
+              className="w-full rounded-full bg-ledger py-2.5 text-sm font-semibold text-white"
+            >
+              Lihat Upgrade ke Plus
+            </Link>
+          </div>
+        ) : (
+          <div className="app-card space-y-3 p-4">
+            {envelopePctWarning && (
+              <div className="rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">
+                Total alokasi saat ini {Math.round(envelopePctTotal * 100)}% — idealnya
+                pas 100% biar semua pemasukan punya tempat.
+              </div>
+            )}
+
+            {envelopes.length === 0 && (
+              <p className="text-xs text-gray-400">
+                Belum ada kategori alokasi. Tambah, mis. &quot;Kebutuhan Sehari-hari&quot; 50%,
+                &quot;Dana Darurat&quot; 30%, &quot;Tabungan/Invest&quot; 20%.
+              </p>
+            )}
+
+            {envelopes.map((env) => {
+              const nominal = env.percentage * incomeTotal;
+              const terpakai = envelopeActual(env.id);
+              const pct = nominal > 0 ? Math.min(100, (terpakai / nominal) * 100) : terpakai > 0 ? 100 : 0;
+              const over = terpakai > nominal;
+              return (
+                <div key={env.id} className="rounded-xl border border-line p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <div className="flex-1">
+                      <TextInput
+                        value={env.name}
+                        onCommit={(v) => updateEnvelope(env.id, "name", v)}
+                      />
+                    </div>
+                    <div className="flex w-20 items-center gap-1">
+                      <NumberInput
+                        value={Math.round(env.percentage * 100)}
+                        onCommit={(v) => updateEnvelope(env.id, "percentage", Math.max(0, Math.min(100, v)) / 100)}
+                      />
+                      <span className="text-xs text-gray-400">%</span>
+                    </div>
+                    <DeleteButton onClick={() => removeEnvelope(env.id)} />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>Pagu: {rupiah(nominal)}</span>
+                    <span className={over ? "font-semibold text-danger" : undefined}>
+                      Terpakai: {rupiah(terpakai)}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-paper">
+                    <div
+                      className={`h-full rounded-full ${over ? "bg-danger" : "bg-leaf"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            <button
+              onClick={addEnvelope}
+              className="w-full rounded-xl border border-dashed border-line py-2 text-xs font-semibold text-gray-400"
+            >
+              + Tambah Kategori Alokasi
+            </button>
+
+            {envelopes.length > 0 && (
+              <p className="text-[11px] text-gray-400">
+                Assign pengeluaran ke kategori ini lewat dropdown &quot;Alokasi&quot; di tabel
+                Pengeluaran Tetap / Tidak Tetap di atas.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
     </div>
   );
@@ -534,6 +720,31 @@ function NumberInput({
       }}
       className="w-full rounded-lg bg-transparent px-1 py-1 text-right text-sm focus:bg-paper focus:outline-none"
     />
+  );
+}
+
+function EnvelopeSelect({
+  value,
+  envelopes,
+  onChange,
+}: {
+  value: string;
+  envelopes: BudgetEnvelope[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <select
+      defaultValue={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full max-w-[9rem] rounded-lg bg-transparent py-1 text-xs focus:bg-paper focus:outline-none"
+    >
+      <option value="">— Tanpa Alokasi —</option>
+      {envelopes.map((env) => (
+        <option key={env.id} value={env.id}>
+          {env.name}
+        </option>
+      ))}
+    </select>
   );
 }
 

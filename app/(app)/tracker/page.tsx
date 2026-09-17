@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, Suspense} from "react";
+import { useState, Suspense } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
 import { monthEndExclusive, useBudgetMonth } from "@/lib/month";
@@ -23,36 +24,40 @@ function groupLabel(dateStr: string): string {
   });
 }
 
+async function fetchTransactions(supabase: ReturnType<typeof createClient>, month: string, monthEnd: string) {
+  const { data } = await supabase
+    .from("transactions")
+    .select("*")
+    .gte("date", month)
+    .lt("date", monthEnd)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(500); // batas aman — kalau kepentok, riwayat terlama di bulan itu nggak ikut kebawa
+  return (data ?? []) as Transaction[];
+}
+
 function TrackerPageInner() {
   const supabase = createClient();
   const { showToast } = useToast();
   const month = useBudgetMonth();
   const monthEnd = monthEndExclusive(month);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["transactions", month],
+    queryFn: () => fetchTransactions(supabase, month, monthEnd),
+  });
+  const transactions = data ?? [];
+  const loading = isLoading;
+
   const [filter, setFilter] = useState<"Semua" | "Jajan" | "Nongkrong">("Semua");
   const [query, setQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [splitTx, setSplitTx] = useState<Transaction | null>(null);
 
   async function load() {
-    setLoading(true);
-    const { data } = await supabase
-      .from("transactions")
-      .select("*")
-      .gte("date", month)
-      .lt("date", monthEnd)
-      .order("date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(500); // batas aman — kalau kepentok, riwayat terlama di bulan itu nggak ikut kebawa
-    setTransactions(data ?? []);
-    setLoading(false);
+    await queryClient.invalidateQueries({ queryKey: ["transactions", month] });
   }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
 
   async function removeTransaction(id: string) {
     if (!confirm("Hapus transaksi ini?")) return;
@@ -89,16 +94,16 @@ function TrackerPageInner() {
             <MonthPicker compact />
           </div>
         </div>
-        <button onClick={() => setShowFilters((visible) => !visible)} aria-label="Buka filter" className={`grid h-10 w-10 place-items-center rounded-xl ${showFilters ? "bg-ledger text-white" : "bg-white text-gray-500 shadow-sm"}`}><SlidersHorizontal size={18} /></button>
+        <button onClick={() => setShowFilters((visible) => !visible)} aria-label="Buka filter" className={`grid h-10 w-10 place-items-center rounded-xl ${showFilters ? "bg-ledger text-white" : "bg-surface text-gray-500 shadow-sm"}`}><SlidersHorizontal size={18} /></button>
       </div>
 
-      <div className="mb-3 flex items-center gap-2 rounded-xl border border-line/60 bg-white px-3 py-2 shadow-sm">
+      <div className="mb-3 flex items-center gap-2 rounded-xl border border-line/60 bg-surface px-3 py-2 shadow-sm">
         <Search size={17} className="text-gray-400" />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari transaksi atau kategori" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400" />
         {query && <button onClick={() => setQuery("")} aria-label="Hapus pencarian" className="text-gray-400"><X size={16} /></button>}
       </div>
 
-      {showFilters && <div className="mb-4 flex gap-2 rounded-xl bg-white p-1.5 shadow-sm">
+      {showFilters && <div className="mb-4 flex gap-2 rounded-xl bg-surface p-1.5 shadow-sm">
         {(["Semua", "Jajan", "Nongkrong"] as const).map((f) => (
           <button
             key={f}
@@ -211,11 +216,11 @@ function SplitSheet({ transaction, onClose }: { transaction: Transaction; onClos
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-ledger/35 p-0 md:items-center md:justify-center md:p-6">
       <div className="w-full rounded-t-[28px] bg-[#f8f6f1] p-5 shadow-2xl md:max-w-md md:rounded-[28px] max-h-[90vh] overflow-y-auto">
-        <div className="mb-4 flex items-start justify-between"><div><p className="text-xs font-semibold text-coin">SPLIT NONGKRONG</p><h2 className="mt-1 text-xl font-bold tracking-tight text-ledger">{transaction.name}</h2><p className="mt-1 text-sm text-gray-500">Total {rupiah(total)}</p></div><button onClick={onClose} aria-label="Tutup" className="grid h-9 w-9 place-items-center rounded-full bg-white text-gray-500"><X size={18} /></button></div>
+        <div className="mb-4 flex items-start justify-between"><div><p className="text-xs font-semibold text-coin">SPLIT NONGKRONG</p><h2 className="mt-1 text-xl font-bold tracking-tight text-ledger">{transaction.name}</h2><p className="mt-1 text-sm text-gray-500">Total {rupiah(total)}</p></div><button onClick={onClose} aria-label="Tutup" className="grid h-9 w-9 place-items-center rounded-full bg-surface text-gray-500"><X size={18} /></button></div>
 
         <div className="mb-4 flex gap-2">
-          <button onClick={() => setMode("rata")} className={`flex-1 rounded-full py-2 text-sm font-medium ${mode === "rata" ? "bg-ledger text-white" : "bg-white text-gray-500"}`}>Bagi Rata</button>
-          <button onClick={() => setMode("custom")} className={`flex-1 rounded-full py-2 text-sm font-medium ${mode === "custom" ? "bg-ledger text-white" : "bg-white text-gray-500"}`}>Custom per Orang</button>
+          <button onClick={() => setMode("rata")} className={`flex-1 rounded-full py-2 text-sm font-medium ${mode === "rata" ? "bg-ledger text-white" : "bg-surface text-gray-500"}`}>Bagi Rata</button>
+          <button onClick={() => setMode("custom")} className={`flex-1 rounded-full py-2 text-sm font-medium ${mode === "custom" ? "bg-ledger text-white" : "bg-surface text-gray-500"}`}>Custom per Orang</button>
         </div>
 
         {mode === "rata" ? (
@@ -264,7 +269,7 @@ function SplitSheet({ transaction, onClose }: { transaction: Transaction; onClos
           </div>
         )}
 
-        <div className="mt-3 whitespace-pre-line rounded-2xl bg-white p-3 text-xs leading-relaxed text-gray-600">{message}</div>
+        <div className="mt-3 whitespace-pre-line rounded-2xl bg-surface p-3 text-xs leading-relaxed text-gray-600">{message}</div>
         <button onClick={copyMessage} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-coin py-3 text-sm font-bold text-ledger">{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? "Pesan tersalin" : "Salin pesan untuk WhatsApp"}</button>
       </div>
     </div>

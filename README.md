@@ -143,6 +143,19 @@ akun beneran.
 > pernah commit ke Git / kirim ke siapapun. Kalau bocor, langsung generate
 > ulang dari dashboard Supabase.
 
+### 6. Jadiin diri kamu Admin (buat akses `/admin`)
+
+Setelah jalanin migrasi tabel `admins` (ada di `supabase/schema.sql`), daftarkan
+akun kamu sendiri lewat SQL Editor:
+
+```sql
+insert into admins (user_id)
+select id from auth.users where email = 'email-kamu@gmail.com';
+```
+
+Setelah itu buka `/admin` di aplikasi (nggak ada link-nya di UI, sengaja
+disembunyikan biar nggak dipencet orang random — akses langsung lewat URL).
+
 ---
 
 ## 1. Setup Supabase

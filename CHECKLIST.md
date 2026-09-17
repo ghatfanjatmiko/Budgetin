@@ -69,27 +69,36 @@
 
 ---
 
-## 🔴 Prioritas Tinggi
+## 🔴 Prioritas Tinggi (lama)
 
-- [x] Favicon (pakai `app/icon.png`, otomatis kedeteksi Next.js — nggak perlu kode tambahan)
-- [x] Landing page publik di `/` sebelum halaman login (sebelumnya auto-redirect ke /dashboard, sekarang halaman promosi beneran)
+- [x] Favicon (pakai `app/icon.png`)
+- [x] Landing page publik di `/`
 - [ ] Automated testing (baru sebatas `npm run build`, belum ada tes fungsional)
-- [ ] Belum pernah dites end-to-end pakai Supabase produksi asli (semua build test pakai placeholder key)
+- [ ] Belum pernah dites end-to-end pakai Supabase produksi asli oleh kamu sendiri
 
-## 🟡 Prioritas Sedang
+## 🟡 Prioritas Sedang (lama)
 
-- [ ] Split Nongkrong custom per orang (sekarang baru bagi rata)
-- [ ] Grafik tren multi-bulan di Insights (baru bandingin vs bulan lalu doang)
-- [ ] Rate limit di API route `/api/scan-receipt` (rawan disalahgunakan kalau link kesebar)
-- [ ] Hapus akun permanen (sekarang cuma bisa reset data bulan aktif)
-- [ ] Setup PWA (Add to Home Screen)
+- [x] Split Nongkrong custom per orang
+- [x] Grafik tren 6 bulan di Insights
+- [x] Rate limit di API `/api/scan-receipt` (20/hari + wajib login)
+- [x] Hapus akun permanen
+- [x] Setup PWA
 
-## 🟢 Prioritas Rendah
+## 🟢 Prioritas Rendah (lama)
 
-- [ ] Dark mode
-- [ ] Caching data (React Query/SWR) biar pindah halaman nggak fetch ulang total
-- [ ] Meta tags & og:image buat preview link yang bagus pas di-share
-- [ ] Admin dashboard (statistik pengguna, sesuai "Metrik Keberhasilan" PRD bagian 9)
+- [x] Dark mode (toggle di sidebar & Profil, berbasis CSS variable)
+- [x] Caching data (React Query) — **sekarang di SEMUA halaman**: Home, Budget, Tracker, Tagihan, Insights
+- [x] Meta tags & og:image
+- [x] Admin dashboard di `/admin`
+
+## 🆕 Temuan Audit Lanjutan (semua sudah beres)
+
+- [x] `NEXT_PUBLIC_SITE_URL` — auto-fallback ke domain Vercel (`VERCEL_URL`) kalau env var ini nggak di-set manual, jadi nggak lagi patah ke localhost di production
+- [x] Halaman `error.tsx` custom
+- [x] Halaman `not-found.tsx` custom (404)
+- [x] `robots` noindex untuk `/admin`
+- [x] Halaman Kebijakan Privasi (`/privasi`)
+- [x] Ikon PWA multi-ukuran (`icon-192.png`, `icon-512.png`)
 
 ## ⚫ Sengaja Ditunda (bukan kelupaan)
 
@@ -99,8 +108,20 @@
 
 ---
 
+## 🔵 Belum Dikerjain — Butuh Kamu
+
+Ini 2 item yang **nggak bisa aku kerjain dari sandbox** — genuinely butuh kamu:
+
+- [ ] **Automated testing** — perlu diskusi dulu mau pakai apa (Playwright buat E2E? Jest buat unit test?), scope-nya beda tergantung pilihan.
+- [ ] **Testing manual end-to-end pakai Supabase produksi asli kamu** — semua yang aku bangun cuma divalidasi lewat `npm run build` (compile check) pakai placeholder key. Belum ada jaminan alur penuh (daftar → isi budget → scan struk → export laporan → dst) beneran mulus di project Supabase kamu. **Ini prioritas paling penting sebelum nambah fitur baru lagi.**
+
+---
+
 ## Catatan Riwayat Sesi
 
-_(Opsional — tambahin baris singkat tiap sesi kalau mau jejak riwayatnya jelas)_
-
 - **Riwayat awal**: PRD dibuat, prototype HTML, lalu full rebuild ke Next.js + Supabase sesuai mockup UI (Home/Budget/Tracker/Tagihan/Profil + Insights + Scan). Auth sempat beberapa kali ganti pendekatan (OTP → invite-only → Gmail SMTP terbuka) sebelum settle di email+password terbuka. Model AI scan struk pindah dari Claude ke Gemini (gratis). Ditutup dengan optimasi UX + paywall minimal + menu Profil lengkap.
+- **Sesi lanjutan**: Semua item checklist (Tinggi/Sedang/Rendah) dikerjain, termasuk dark mode, React Query di semua halaman, admin dashboard, error/404 page, kebijakan privasi, dan PWA icon multi-ukuran. **Belum pernah dites langsung sama kamu di Supabase produksi — disarankan berhenti nambah fitur dulu dan fokus testing manual.**
+- **Sesi fitur "Alokasi Budget (%)" (Plus)**: Nambah fitur baru — user Plus bisa bikin kategori custom (envelope) dengan jatah persen dari total pemasukan bulan itu (mis. 50% Kebutuhan, 30% Dana Darurat, 20% Tabungan), lalu assign pengeluaran tetap/tidak tetap yang sudah ada ke tiap envelope lewat dropdown. Sistem otomatis hitung pagu (nominal) & pemakaian per envelope, dengan progress bar. **Fitur lama sama sekali tidak diubah** — user gratis melihat halaman Budget persis seperti sebelumnya (kolom "Alokasi" di tabel cuma muncul kalau Plus & sudah ada envelope-nya).
+  - Tabel baru `budget_envelopes` + kolom nullable `envelope_id` di `fixed_expenses` & `variable_expenses` — lihat `supabase/migration_budget_envelopes.sql` (jalankan file ini saja di Supabase, JANGAN re-run `schema.sql` penuh).
+  - Gating premium pakai `profiles.is_plus`, pola yang sama seperti Scan Struk AI.
+  - **Belum dites di Supabase produksi asli** — sebelum lanjut, jalankan migration-nya dulu terus tes alur: upgrade `is_plus` manual di DB → buka halaman Budget → tambah envelope → assign kategori → cek pagu/terpakai kehitung bener.

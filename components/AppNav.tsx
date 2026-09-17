@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, PieChart, ReceiptText, FileClock, UserRound, Plus } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const tabs = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -18,11 +19,14 @@ export default function AppNav() {
   return (
     <>
       {/* Sidebar — desktop */}
-      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-[272px] md:flex-col md:border-r md:border-line/70 md:bg-white md:px-6 md:py-8">
-        <div className="mb-10 flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Budgetin' logo" className="w-9 h-9 rounded-lg" />
-          <span className="text-xl font-bold tracking-[-0.04em] text-ledger">Budgetin&apos;</span>
+      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-[272px] md:flex-col md:border-r md:border-line/70 md:bg-surface md:px-6 md:py-8">
+        <div className="mb-10 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Budgetin' logo" className="w-9 h-9 rounded-lg" />
+            <span className="text-xl font-bold tracking-[-0.04em] text-ledger">Budgetin&apos;</span>
+          </div>
+          <ThemeToggle />
         </div>
         <nav className="flex flex-col gap-1.5">
           {tabs.map((t) => {
@@ -51,7 +55,7 @@ export default function AppNav() {
       </aside>
 
       {/* Bottom nav — mobile */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-line/70 bg-white px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-line/70 bg-surface px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = pathname === t.href || pathname.startsWith(t.href + "/");

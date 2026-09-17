@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { upgradeWhatsAppLink, feedbackWhatsAppLink } from "@/lib/whatsapp";
+import ThemeToggle from "@/components/ThemeToggle";
 import { useToast } from "@/components/Toast";
 import { Crown, User, Shield, FileDown, Database, HelpCircle, MessageSquare, ChevronRight, LogOut, GraduationCap, Check } from "lucide-react";
 
@@ -78,7 +79,10 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="page-title mb-1">Profil</h1>
+      <div className="mb-1 flex items-center justify-between">
+        <h1 className="page-title">Profil</h1>
+        <ThemeToggle />
+      </div>
 
       {/* User card */}
       <div className="app-card flex items-center gap-3 p-5">
@@ -174,7 +178,7 @@ export default function ProfilePage() {
 
       <button
         onClick={handleLogout}
-        className="w-full flex items-center justify-center gap-2 bg-white rounded-2xl shadow-sm py-3 text-sm font-medium text-danger"
+        className="w-full flex items-center justify-center gap-2 bg-surface rounded-2xl shadow-sm py-3 text-sm font-medium text-danger"
       >
         <LogOut size={16} /> Keluar
       </button>

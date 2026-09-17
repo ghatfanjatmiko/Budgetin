@@ -190,7 +190,7 @@ export default function LaporanPage() {
       <button
         onClick={downloadXlsx}
         disabled={loading !== ""}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-semibold text-ledger shadow-sm disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface py-3 text-sm font-semibold text-ledger shadow-sm disabled:opacity-50"
       >
         {!isPlus && <Crown size={14} className="text-coin" />}
         {loading === "xlsx" ? "Menyiapkan..." : "Unduh Excel (.xlsx)"}
@@ -199,7 +199,7 @@ export default function LaporanPage() {
       <button
         onClick={downloadPdf}
         disabled={loading !== ""}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-semibold text-ledger shadow-sm disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface py-3 text-sm font-semibold text-ledger shadow-sm disabled:opacity-50"
       >
         {!isPlus && <Crown size={14} className="text-coin" />}
         {loading === "pdf" ? "Menyiapkan..." : "Unduh PDF"}

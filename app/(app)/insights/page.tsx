@@ -1,7 +1,8 @@
 "use client";
 
 import LoadingState from "@/components/LoadingState";
-import { useEffect, useState, Suspense} from "react";
+import { Suspense } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
@@ -20,85 +21,80 @@ import {
 
 type Tx = { date: string; kind: "Jajan" | "Nongkrong"; name: string; qty: number; price: number };
 
+async function fetchInsightsData(supabase: ReturnType<typeof createClient>, month: string, monthEnd: string) {
+  const lastMonthStart = previousMonthStart(month);
+
+  const [t, tLast] = await Promise.all([
+    supabase.from("transactions").select("date, kind, name, qty, price").gte("date", month).lt("date", monthEnd).order("date"),
+    supabase.from("transactions").select("qty, price").gte("date", lastMonthStart).lt("date", month),
+  ]);
+  const tx = (t.data ?? []) as Tx[];
+  const lastMonthActual = (tLast.data ?? []).reduce(
+    (s: number, r: any) => s + Number(r.qty) * Number(r.price),
+    0
+  );
+
+  // ---------- Tren 6 bulan terakhir ----------
+  const [y, m] = month.split("-").map(Number);
+  const sixMonthsAgo = new Date(y, m - 1 - 5, 1);
+  const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, "0")}-01`;
+  const { data: trendRaw } = await supabase
+    .from("transactions")
+    .select("date, qty, price")
+    .gte("date", sixMonthsAgoStr)
+    .lt("date", monthEnd);
+
+  const byMonth: Record<string, number> = {};
+  (trendRaw ?? []).forEach((r: any) => {
+    const key = r.date.slice(0, 7); // YYYY-MM
+    byMonth[key] = (byMonth[key] || 0) + Number(r.qty) * Number(r.price);
+  });
+  const trend: { label: string; total: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    trend.push({
+      label: d.toLocaleDateString("id-ID", { month: "short" }),
+      total: byMonth[key] || 0,
+    });
+  }
+
+  let campus: string | null = null;
+  let benchmark: { user_count: number; avg_total: number } | null = null;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("campus")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    campus = profile?.campus ?? null;
+
+    if (profile?.campus) {
+      const { data: bench } = await supabase.rpc("get_campus_benchmark", { target_month: month });
+      benchmark = bench && bench.length > 0 ? bench[0] : null;
+    }
+  }
+
+  return { tx, lastMonthActual, trend, campus, benchmark };
+}
+
 function InsightsPageInner() {
   const supabase = createClient();
   const month = useBudgetMonth();
   const monthEnd = monthEndExclusive(month);
 
-  const [loading, setLoading] = useState(true);
-  const [tx, setTx] = useState<Tx[]>([]);
-  const [lastMonthActual, setLastMonthActual] = useState(0);
-  const [campus, setCampus] = useState<string | null>(null);
-  const [benchmark, setBenchmark] = useState<{ user_count: number; avg_total: number } | null>(null);
-  const [trend, setTrend] = useState<{ label: string; total: number }[]>([]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["insights", month],
+    queryFn: () => fetchInsightsData(supabase, month, monthEnd),
+  });
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
+  if (isLoading || !data) return <LoadingState />;
 
-  async function load() {
-    setLoading(true);
-    const lastMonthStart = previousMonthStart(month);
-
-    const [t, tLast] = await Promise.all([
-      supabase.from("transactions").select("date, kind, name, qty, price").gte("date", month).lt("date", monthEnd).order("date"),
-      supabase.from("transactions").select("qty, price").gte("date", lastMonthStart).lt("date", month),
-    ]);
-    setTx((t.data ?? []) as Tx[]);
-    setLastMonthActual(
-      (tLast.data ?? []).reduce((s: number, r: any) => s + Number(r.qty) * Number(r.price), 0)
-    );
-
-    // ---------- Tren 6 bulan terakhir ----------
-    const [y, m] = month.split("-").map(Number);
-    const sixMonthsAgo = new Date(y, m - 1 - 5, 1);
-    const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, "0")}-01`;
-    const { data: trendRaw } = await supabase
-      .from("transactions")
-      .select("date, qty, price")
-      .gte("date", sixMonthsAgoStr)
-      .lt("date", monthEnd);
-
-    const byMonth: Record<string, number> = {};
-    (trendRaw ?? []).forEach((r: any) => {
-      const key = r.date.slice(0, 7); // YYYY-MM
-      byMonth[key] = (byMonth[key] || 0) + Number(r.qty) * Number(r.price);
-    });
-    const trendData: { label: string; total: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(y, m - 1 - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      trendData.push({
-        label: d.toLocaleDateString("id-ID", { month: "short" }),
-        total: byMonth[key] || 0,
-      });
-    }
-    setTrend(trendData);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("campus")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      setCampus(profile?.campus ?? null);
-
-      if (profile?.campus) {
-        const { data: bench } = await supabase.rpc("get_campus_benchmark", { target_month: month });
-        setBenchmark(bench && bench.length > 0 ? bench[0] : null);
-      } else {
-        setBenchmark(null);
-      }
-    }
-
-    setLoading(false);
-  }
-
-  if (loading) return <LoadingState />;
+  const { tx, lastMonthActual, trend, campus, benchmark } = data;
 
   // ---------- Prediksi akhir bulan (dihitung nyata dari data transaksi) ----------
   const now = new Date();

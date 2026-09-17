@@ -83,7 +83,7 @@ export default function LoginPage() {
   if (showForgot) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-paper px-4">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm p-8">
+        <div className="w-full max-w-sm bg-surface rounded-2xl shadow-sm p-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Budgetin' logo" className="w-12 h-12 rounded-xl mb-4" />
           <h1 className="font-bold text-2xl text-ledger mb-1">Lupa Password</h1>
@@ -130,7 +130,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm p-8">
+      <div className="w-full max-w-sm bg-surface rounded-2xl shadow-sm p-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="Budgetin' logo" className="w-12 h-12 rounded-xl mb-4" />
         <h1 className="font-bold text-2xl text-ledger mb-1">Budgetin&apos;</h1>

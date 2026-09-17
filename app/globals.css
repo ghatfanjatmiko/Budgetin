@@ -2,13 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-paper: 248 246 241;
+  --color-ink: 28 37 54;
+  --color-ledger: 24 35 56;
+  --color-mint: 201 151 62;
+  --color-coin: 217 169 74;
+  --color-line: 229 223 207;
+  --color-danger: 210 101 47;
+  --color-leaf: 47 138 85;
+  --color-surface: 255 255 255;
+}
+
+.dark {
+  --color-paper: 16 21 31;
+  --color-ink: 231 228 218;
+  --color-ledger: 231 228 218;
+  --color-mint: 224 182 103;
+  --color-coin: 224 182 103;
+  --color-line: 42 49 64;
+  --color-danger: 227 128 90;
+  --color-leaf: 77 171 119;
+  --color-surface: 26 33 48;
+}
+
 @layer base {
   * { -webkit-tap-highlight-color: transparent; }
 
   body {
     font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #f8f6f1;
-    color: #182338;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   button, a, input, select { -webkit-tap-highlight-color: transparent; }
@@ -16,11 +41,11 @@
 
 @layer components {
   .app-card {
-    @apply rounded-[22px] border border-line/70 bg-white shadow-[0_2px_12px_rgba(24,35,56,0.035)];
+    @apply rounded-[22px] border border-line/70 bg-surface shadow-[0_2px_12px_rgba(24,35,56,0.035)];
   }
 
   .soft-card {
-    @apply rounded-[18px] border border-line/60 bg-[#fcfbf8];
+    @apply rounded-[18px] border border-line/60 bg-surface;
   }
 
   .page-title {
@@ -36,6 +61,6 @@
   }
 
   .field-control {
-    @apply w-full rounded-xl border border-line bg-[#fcfbf8] px-3 py-2.5 text-sm text-ink outline-none transition focus:border-coin focus:ring-2 focus:ring-coin/15;
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none transition focus:border-coin focus:ring-2 focus:ring-coin/15;
   }
 }

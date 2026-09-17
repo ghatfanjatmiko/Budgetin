@@ -59,7 +59,7 @@ export default function AddTransactionPage() {
         <h1 className="page-title">Catat Pengeluaran</h1>
       </div>
 
-      <div className="mb-4 flex gap-2 rounded-xl bg-white p-1.5 shadow-sm">
+      <div className="mb-4 flex gap-2 rounded-xl bg-surface p-1.5 shadow-sm">
         {(["Manual", "Foto Struk"] as const).map((m) => (
           <button
             key={m}

@@ -31,7 +31,7 @@ export default function MonthPicker({ compact = false }: { compact?: boolean }) 
   });
 
   return (
-    <div className={`flex items-center ${compact ? "gap-1" : "justify-between rounded-2xl bg-white p-1.5 shadow-sm"}`}>
+    <div className={`flex items-center ${compact ? "gap-1" : "justify-between rounded-2xl bg-surface p-1.5 shadow-sm"}`}>
       <button onClick={() => changeMonth(moveMonth(month, -1))} aria-label="Bulan sebelumnya" className="grid h-8 w-8 place-items-center rounded-xl text-gray-500 hover:bg-paper"><ChevronLeft size={18} /></button>
       <button onClick={() => changeMonth(currentMonthStart())} className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-semibold capitalize text-ledger hover:bg-paper" title={isCurrent ? "Bulan berjalan" : "Kembali ke bulan berjalan"}>
         <CalendarDays size={15} className="text-coin" /> {label}

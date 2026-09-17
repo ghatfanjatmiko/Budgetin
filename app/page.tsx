@@ -80,7 +80,10 @@ export default function LandingPage() {
       </div>
 
       <div className="border-t border-line py-6 text-center text-xs text-gray-400">
-        Budgetin&apos; — dibuat untuk mahasiswa &amp; pekerja muda Indonesia.
+        <p>Budgetin&apos; — dibuat untuk mahasiswa &amp; pekerja muda Indonesia.</p>
+        <Link href="/privasi" className="mt-1 inline-block underline">
+          Kebijakan Privasi
+        </Link>
       </div>
     </div>
   );

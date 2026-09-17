@@ -160,7 +160,7 @@ export default function ScanPage() {
       </div>
 
       {status === "idle" && (
-        <label className="block bg-white rounded-2xl shadow-sm p-8 text-center cursor-pointer">
+        <label className="block bg-surface rounded-2xl shadow-sm p-8 text-center cursor-pointer">
           <input type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
           <div className="w-16 h-16 rounded-2xl bg-coin/20 flex items-center justify-center mx-auto mb-3">
             📷
@@ -178,7 +178,7 @@ export default function ScanPage() {
       )}
 
       {status === "scanning" && (
-        <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center text-center">
+        <div className="bg-surface rounded-2xl shadow-sm p-6 flex flex-col items-center text-center">
           <Loader2 className="animate-spin text-coin mb-2" size={28} />
           <p className="text-sm text-gray-500">AI sedang membaca struk...</p>
         </div>
@@ -191,7 +191,7 @@ export default function ScanPage() {
       )}
 
       {status === "error" && (
-        <label className="block bg-white border border-line rounded-full text-center py-3 text-sm font-medium text-ledger cursor-pointer">
+        <label className="block bg-surface border border-line rounded-full text-center py-3 text-sm font-medium text-ledger cursor-pointer">
           <input type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
           Coba Foto Lain
         </label>
@@ -203,7 +203,7 @@ export default function ScanPage() {
             ✨ Berhasil dipindai — periksa dan konfirmasi hasilnya
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+          <div className="bg-surface rounded-2xl shadow-sm p-5 space-y-3">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Nama Toko / Tempat</label>
               <input
@@ -230,7 +230,7 @@ export default function ScanPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5">
+          <div className="bg-surface rounded-2xl shadow-sm p-5">
             <p className="text-xs text-gray-500 mb-2">Item Terdeteksi</p>
             <div className="space-y-2">
               {result.items.map((it, idx) => (

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { rupiah } from "@/lib/format";
 import { useToast } from "@/components/Toast";
@@ -18,27 +19,31 @@ function dueStatus(due_day: number | null, status: string): { label: string; ton
   return { label: "", tone: null };
 }
 
+async function fetchSubscriptionsDebts(supabase: ReturnType<typeof createClient>) {
+  const { data } = await supabase
+    .from("subscriptions_debts")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return (data ?? []) as SubscriptionDebt[];
+}
+
 export default function TagihanPage() {
   const supabase = createClient();
   const { showToast } = useToast();
-  const [items, setItems] = useState<SubscriptionDebt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["subscriptions_debts"],
+    queryFn: () => fetchSubscriptionsDebts(supabase),
+  });
+  const items = data ?? [];
+  const loading = isLoading;
+
   const [tab, setTab] = useState<"Langganan" | "Hutang">("Langganan");
 
   async function load() {
-    setLoading(true);
-    const { data } = await supabase
-      .from("subscriptions_debts")
-      .select("*")
-      .order("created_at", { ascending: false });
-    setItems(data ?? []);
-    setLoading(false);
+    await queryClient.invalidateQueries({ queryKey: ["subscriptions_debts"] });
   }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function currentUserId() {
     const {
@@ -91,7 +96,7 @@ export default function TagihanPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-2 rounded-xl bg-white p-1.5 shadow-sm">
+      <div className="mb-4 flex gap-2 rounded-xl bg-surface p-1.5 shadow-sm">
         {(["Langganan", "Hutang"] as const).map((t) => (
           <button
             key={t}
